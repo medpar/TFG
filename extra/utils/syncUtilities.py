@@ -20,8 +20,8 @@ motsignals_range = {
 }
 
 def getMainJointFromMotAndMainBonesFromCSV(dfmot,dfcsv,activity):
-    torso = dfcsv[['spine_x', 'spine_y', 'spine_z']].to_numpy()
-    neck = dfcsv[['neck_base_x', 'neck_base_y', 'neck_base_z']].to_numpy()
+    torso = dfcsv[['torso_x', 'torso_y', 'torso_z']].to_numpy()
+    neck = dfcsv[['neck_x', 'neck_y', 'neck_z']].to_numpy()
     rshoulder = dfcsv[['right_shoulder_x','right_shoulder_y', 'right_shoulder_z']].to_numpy()
     lshoulder = dfcsv[['left_shoulder_x','left_shoulder_y', 'left_shoulder_z']].to_numpy()
     relbow = dfcsv[['right_elbow_x', 'right_elbow_y', 'right_elbow_z']].to_numpy()
@@ -32,8 +32,8 @@ def getMainJointFromMotAndMainBonesFromCSV(dfmot,dfcsv,activity):
     lhip = dfcsv[['left_hip_x', 'left_hip_y', 'left_hip_z']].to_numpy()
     rknee = dfcsv[['right_knee_x', 'right_knee_y', 'right_knee_z']].to_numpy()
     lknee = dfcsv[['left_knee_x', 'left_knee_y', 'left_knee_z']].to_numpy()
-    rankle = dfcsv[['right_foot_x', 'right_foot_y', 'right_foot_z']].to_numpy()
-    lankle = dfcsv[['left_foot_x', 'left_foot_y', 'left_foot_z']].to_numpy()
+    rankle = dfcsv[['right_ankle_x', 'right_ankle_y', 'right_ankle_z']].to_numpy()
+    lankle = dfcsv[['left_ankle_x', 'left_ankle_y', 'left_ankle_z']].to_numpy() 
     # LOWER ACTIVITIES  
     if activity in lower_activities:
         if activity in ["A02", "A04"]:
