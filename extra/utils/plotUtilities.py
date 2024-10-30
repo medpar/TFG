@@ -7,7 +7,7 @@ import utils.fileProcessing as fp
 
 #VIDEO
 
-def plotVideoPoseAllSubjectsOneActivity_mmpose(inpath,outpath,subjects,activity,activity_legend,outputfilename=None):
+def plotVideoPoseAllSubjectsOneActivity(inpath,outpath,subjects,activity,activity_legend,outputfilename=None):
     ncols = 6
     nrows = len(subjects)
 
@@ -36,7 +36,7 @@ def plotVideoPoseAllSubjectsOneActivity_mmpose(inpath,outpath,subjects,activity,
             print("None")
             continue
 
-        arm_flex_r,arm_flex_l,elbow_flex_r,elbow_flex_l,knee_angle_r,knee_angle_l=fp.getMainJointAnglesFromCSV2_mmpose(dfcsv)
+        arm_flex_r,arm_flex_l,elbow_flex_r,elbow_flex_l,knee_angle_r,knee_angle_l=fp.getMainJointAnglesFromCSV2(dfcsv)
         arm_flex_r_filt = sp.applyMedianFilter(arm_flex_r,11)
         arm_flex_l_filt = sp.applyMedianFilter(arm_flex_l,11)
         elbow_flex_r_filt = sp.applyMedianFilter(elbow_flex_r,11)

@@ -55,34 +55,6 @@ def getMainJointAnglesFromCSV2(dfcsv):
 
     return arm_flex_r,arm_flex_l,elbow_flex_r,elbow_flex_l,knee_angle_r,knee_angle_l
 
-def getMainJointAnglesFromCSV2_mmpose(dfcsv):
-    # Map CSV columns to variables
-    torso = dfcsv[['spine_x', 'spine_y', 'spine_z']].to_numpy()
-    neck = dfcsv[['neck_base_x', 'neck_base_y', 'neck_base_z']].to_numpy()
-    rshoulder = dfcsv[['right_shoulder_x', 'right_shoulder_y', 'right_shoulder_z']].to_numpy()
-    lshoulder = dfcsv[['left_shoulder_x', 'left_shoulder_y', 'left_shoulder_z']].to_numpy()
-    relbow = dfcsv[['right_elbow_x', 'right_elbow_y', 'right_elbow_z']].to_numpy()
-    lelbow = dfcsv[['left_elbow_x', 'left_elbow_y', 'left_elbow_z']].to_numpy()
-    rwrist = dfcsv[['right_wrist_x', 'right_wrist_y', 'right_wrist_z']].to_numpy()
-    lwrist = dfcsv[['left_wrist_x', 'left_wrist_y', 'left_wrist_z']].to_numpy()
-    rhip = dfcsv[['right_hip_x', 'right_hip_y', 'right_hip_z']].to_numpy()
-    lhip = dfcsv[['left_hip_x', 'left_hip_y', 'left_hip_z']].to_numpy()
-    rknee = dfcsv[['right_knee_x', 'right_knee_y', 'right_knee_z']].to_numpy()
-    lknee = dfcsv[['left_knee_x', 'left_knee_y', 'left_knee_z']].to_numpy()
-    rankle = dfcsv[['right_foot_x', 'right_foot_y', 'right_foot_z']].to_numpy()
-    lankle = dfcsv[['left_foot_x', 'left_foot_y', 'left_foot_z']].to_numpy()
-
-    # Calculate joint angles using the available data
-    arm_flex_r = getJointAngleCsvAsNP([rshoulder, relbow, neck, torso])
-    arm_flex_l = getJointAngleCsvAsNP([lshoulder, lelbow, neck, torso])
-    elbow_flex_r = getJointAngleCsvAsNP([rshoulder, relbow, relbow, rwrist])
-    elbow_flex_l = getJointAngleCsvAsNP([lshoulder, lelbow, lelbow, lwrist])
-    knee_angle_r = getJointAngleCsvAsNP([rhip, rknee, rknee, rankle])
-    knee_angle_l = getJointAngleCsvAsNP([lhip, lknee, lknee, lankle])
-
-    return arm_flex_r, arm_flex_l, elbow_flex_r, elbow_flex_l, knee_angle_r, knee_angle_l
-
-
 def getJointAngleCsvAsNP(bonesCSV):
     bone1,bone2,bone3,bone4 = bonesCSV
     segmA = bone1-bone2
