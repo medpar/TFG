@@ -33,7 +33,7 @@ def getMainJointFromMotAndMainBonesFromCSV(dfmot,dfcsv,activity):
     rknee = dfcsv[['right_knee_x', 'right_knee_y', 'right_knee_z']].to_numpy()
     lknee = dfcsv[['left_knee_x', 'left_knee_y', 'left_knee_z']].to_numpy()
     rankle = dfcsv[['right_ankle_x', 'right_ankle_y', 'right_ankle_z']].to_numpy()
-    lankle = dfcsv[['left_ankle_x', 'left_ankle_y', 'left_ankle_z']].to_numpy()
+    lankle = dfcsv[['left_ankle_x', 'left_ankle_y', 'left_ankle_z']].to_numpy() 
     # LOWER ACTIVITIES  
     if activity in lower_activities:
         if activity in ["A02", "A04"]:

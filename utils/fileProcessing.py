@@ -28,6 +28,9 @@ def getJointAngleCsvAsNP(bonesCSV):
         index+=1
     return jointangle_video
 
+
+# Hay que lograr que esta funcion tome los datos segun los nombres del csv nuevo de mmpose
+
 def getMainJointAnglesFromCSV2(dfcsv):
     torso = dfcsv[['torso_x', 'torso_y', 'torso_z']].to_numpy()
     neck = dfcsv[['neck_x', 'neck_y', 'neck_z']].to_numpy()
