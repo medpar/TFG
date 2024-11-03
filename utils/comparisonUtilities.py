@@ -25,9 +25,13 @@ def compareAllSubjectsOneActivity(csvlog, inpath, inpath1, inpath2, outpath, sub
     rmse_list = []
 
     # Limit the visualization to the first four subjects
-    subjects_to_plot = subjects[:4]
-    ncols = len(subjects_to_plot)
-    fig, axes = plt.subplots(1, ncols, figsize=(ncols * 5, 5))
+    subjects_to_plot = subjects
+    ncols = 4
+    nrows = (len(subjects_to_plot) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 5, nrows * 5))
+    axes = axes.flatten()
+    # ncols = len(subjects_to_plot)
+    # fig, axes = plt.subplots(1, ncols, figsize=(ncols * 5, 5))
     
     for idx, subject in enumerate(subjects_to_plot):
         dfmot = None
@@ -96,15 +100,18 @@ def compareAllSubjectsOneActivity(csvlog, inpath, inpath1, inpath2, outpath, sub
         X = np.arange(0, FINAL_LENGTH)
         ax.plot(X, jointangle_imus_shift, 'r', label='IMUs')
         ax.plot(X, jointangle_video0_shift, 'b', label='Maxine')
-        ax.plot(X, jointangle_video1_shift, 'g', label='MMpose')
+        ax.plot(X, jointangle_video1_shift, 'g', label='MotionBERT')
         ax.plot(X, jointangle_video2_shift, 'm', label='MotionAGFormer')
         ax.set_title(f"Subject: {subject}")
         ax.set_xlabel("Samples (30 Hz)")
         ax.set_ylabel("Degrees")
         ax.legend()
 
-    plt.suptitle(f"Activity {activity}: {activity_legend}", fontsize=16, y=1.05)
+    plt.suptitle(f"Activity {activity}: {activity_legend}", fontsize=16)
     plt.tight_layout(pad=2.0)
+    if outputfilename:
+        plt.savefig(os.path.join(outpath,outputfilename+'.svg'),format='svg')
+        plt.savefig(os.path.join(outpath,outputfilename+'.pdf'),format='pdf')
     plt.show()
 
     return rmse_list
