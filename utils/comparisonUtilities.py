@@ -107,7 +107,7 @@ def compareAllSubjectsOneActivity(csvlog, inpath, inpath1, inpath2, outpath, sub
         ax.set_ylabel("Degrees")
         ax.legend()
 
-    plt.suptitle(f"Activity {activity}: {activity_legend}", fontsize=16)
+    plt.suptitle(f"Activity {activity}: {activity_legend}", fontsize=16, y=1.0)
     plt.tight_layout(pad=2.0)
     if outputfilename:
         plt.savefig(os.path.join(outpath,outputfilename+'.svg'),format='svg')
