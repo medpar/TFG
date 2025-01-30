@@ -8,7 +8,6 @@ from utils.syncUtilities import *
 from sklearn.metrics import mean_squared_error
 
 
-
 lower_activities = ["A01","A02","A03","A04"]
 upper_activities = ["A05","A06","A07","A08","A09","A10","A11","A12","A13"]
 dataset_activities = lower_activities + upper_activities
