@@ -6,7 +6,7 @@ def get_output_filenames(video_file, subject_out_path):
     # Get base name without extension
     base_name = os.path.splitext(video_file)[0]
     # Define expected output files
-    vis_video = os.path.join(subject_out_path, f"{base_name}_vis.mp4")
+    vis_video = os.path.join(subject_out_path, f"{base_name}.mp4")
     json_file = os.path.join(subject_out_path, f"{base_name}.json")
     return vis_video, json_file
 
