@@ -3,13 +3,14 @@ import json
 import pandas as pd
 
 # Define paths for input and output directories
-in_base_path = '/mnt/b/VIDIMU/videosfullsize_motionagformer'
-out_base_path = '/mnt/b/VIDIMU/dataset/dataset_motionagformer/videoandimus'
+if platform.system() == "Linux":
+    in_base_path = None
+    out_base_path = None
+elif platform.system() == "Darwin":
+    in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionagformer'
+    out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_motionagformer'
 
-selected_subjects = [
-    "S40", "S41", "S42", "S44", "S46", "S47", "S48", "S49", "S50", "S51", 
-    "S52", "S53", "S54", "S55", "S56", "S57"
-]
+selected_subjects = ["S40","S41","S42","S44","S46","S47","S48","S49","S50","S51","S52","S53","S54","S55","S56","S57"]
 
 # Define the keypoint mapping
 KEYPOINT_MAPPING = {
@@ -75,4 +76,4 @@ def convert_json_to_csv(subjects, out_root_path):
 
 
 convert_json_to_csv(selected_subjects, out_base_path)
-print("Videoandimus subjects conversion complete.")
+print("Conversion complete.")

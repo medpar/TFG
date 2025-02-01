@@ -4,8 +4,8 @@ import pandas as pd
 
 # Paths for input and output directories
 if platform.system() == "Linux":
-    in_base_path = ''
-    out_base_path = ''
+    in_base_path = None
+    out_base_path = None
 elif platform.system() == "Darwin":
     in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
     out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_motionbert'

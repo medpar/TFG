@@ -29,8 +29,8 @@ def motionbert_inference(in_base_path, out_base_path, selected_subjects=None,dev
         
         # Process each .mp4 video file in the subject folder
         for video_file in os.listdir(subject_in_path):
-            if video_file.lower().endswith('.mp4'):
-                if video_file.lower().endswith('_npose.mp4'):
+            if video_file.lower().endswith('.mp4'): 
+                if video_file.lower().endswith('_npose.mp4'):   # !!! Lo hemos pasado todo a lowercase
                     continue                                    # Skip files ending with '_Npose'
                 
                 # Check if output files already exist
