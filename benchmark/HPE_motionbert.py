@@ -2,18 +2,18 @@ import os
 import platform
 from mmpose.apis import MMPoseInferencer
 
-def motionbert_inference(in_root_path, out_root_path, selected_subjects=None,device="none"):
+def motionbert_inference(in_base_path, out_base_path, selected_subjects=None,device="none"):
 
     inferencer = MMPoseInferencer(pose3d="motionbert_dstformer-ft-243frm_8xb32-120e_h36m",device=device)
     
-    # If no specific subjects are given, process every directory in in_root_path
+    # If no specific subjects are given, process every directory in in_base_path
     if selected_subjects is None:
-        selected_subjects = [d for d in os.listdir(in_root_path) 
-                             if os.path.isdir(os.path.join(in_root_path, d))]
+        selected_subjects = [d for d in os.listdir(in_base_path) 
+                             if os.path.isdir(os.path.join(in_base_path, d))]
     
     for subject in selected_subjects:
-        subject_in_path = os.path.join(in_root_path, subject)
-        subject_out_path = os.path.join(out_root_path, subject)
+        subject_in_path = os.path.join(in_base_path, subject)
+        subject_out_path = os.path.join(out_base_path, subject)
         
         # Ensure the output directory for the subject exists
         os.makedirs(subject_out_path, exist_ok=True)
@@ -48,13 +48,13 @@ def main():
     selected_subjects = ["S40","S41","S42", "S44", "S46","S47","S48","S49","S50","S51","S52","S53","S54","S55","S56","S57"]
 
     if platform.system() == "Linux":
-        in_root_path = '/mnt/d/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'     
-        out_root_path = '/mnt/d/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
-        motionbert_inference(in_root_path, out_root_path, selected_subjects, device="cuda")
+        in_base_path = '/mnt/d/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'     
+        out_base_path = '/mnt/d/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
+        motionbert_inference(in_base_path, out_base_path, selected_subjects, device="cuda")
     elif platform.system() == "Darwin":
-        in_root_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'
-        out_root_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
-        motionbert_inference(in_root_path, out_root_path, selected_subjects, device="cpu")
+        in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'
+        out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
+        motionbert_inference(in_base_path, out_base_path, selected_subjects, device="cpu")
 
 if __name__ == "__main__":
     main()
