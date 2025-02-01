@@ -17,7 +17,7 @@ def get_output_filenames(video_file, subject_out_path):
     json_file = os.path.join(subject_out_path, f"{base_name}.json")
     return vis_video, json_file
 
-def motionbert_inference(in_base_path, out_base_path, selected_subjects=None, device="none"):
+def motionbert_inference(in_base_path, out_base_path, selected_subjects=None, device=None):
     inferencer = MMPoseInferencer(
         pose3d="motionbert_dstformer-ft-243frm_8xb32-120e_h36m",
         device=device
@@ -92,12 +92,14 @@ def main():
     ]
     
     if platform.system() == "Linux":
-        in_base_path = '/mnt/d/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'
-        out_base_path = '/mnt/d/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
+        dataset_path = '/mnt/d/vidimu_pipeline/VIDIMU'
+        in_base_path = os.path.join(dataset_path, 'videosfullsize_videosoriginal/videosfullsize/videosoriginal')
+        out_base_path = os.path.join(dataset_path, 'benchmark/pose3d_motionbert')
         motionbert_inference(in_base_path, out_base_path, selected_subjects, device="cuda")
     elif platform.system() == "Darwin":
-        in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'
-        out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
+        dataset_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU'
+        in_base_path = os.path.join(dataset_path, 'videosfullsize_videosoriginal/videosfullsize/videosoriginal')
+        out_base_path = os.path.join(dataset_path, 'benchmark/pose3d_motionbert')
         motionbert_inference(in_base_path, out_base_path, selected_subjects, device="cpu")
 
 if __name__ == "__main__":
