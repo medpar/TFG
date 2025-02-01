@@ -2,6 +2,14 @@ import os
 import platform
 from mmpose.apis import MMPoseInferencer
 
+def get_output_filenames(video_file, subject_out_path):
+    # Get base name without extension
+    base_name = os.path.splitext(video_file)[0]
+    # Define expected output files
+    vis_video = os.path.join(subject_out_path, f"{base_name}_vis.mp4")
+    json_file = os.path.join(subject_out_path, f"{base_name}.json")
+    return vis_video, json_file
+
 def motionbert_inference(in_base_path, out_base_path, selected_subjects=None,device="none"):
 
     inferencer = MMPoseInferencer(pose3d="motionbert_dstformer-ft-243frm_8xb32-120e_h36m",device=device)
@@ -22,9 +30,15 @@ def motionbert_inference(in_base_path, out_base_path, selected_subjects=None,dev
         # Process each .mp4 video file in the subject folder
         for video_file in os.listdir(subject_in_path):
             if video_file.lower().endswith('.mp4'):
-
                 if video_file.lower().endswith('_npose.mp4'):
                     continue                                    # Skip files ending with '_Npose'
+                
+                # Check if output files already exist
+                vis_video, json_file = get_output_filenames(video_file, subject_out_path)
+                if os.path.exists(vis_video) and os.path.exists(json_file):
+                    print(f"  Skipping '{video_file}' - outputs already exist")
+                    continue
+
                 input_video = os.path.join(subject_in_path, video_file)
                 print(f"  Inference on video: {input_video}")
                 
