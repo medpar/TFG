@@ -49,11 +49,11 @@ def main():
 
     if platform.system() == "Linux":
         in_root_path = '/mnt/d/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'     
-        out_root_path = '/mnt/d/vidimu_pipeline/VIDIMU/benchmark/dataset_motionbert'
+        out_root_path = '/mnt/d/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
         motionbert_inference(in_root_path, out_root_path, selected_subjects, device="cuda")
     elif platform.system() == "Darwin":
         in_root_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/videosfullsize_videosoriginal/videosfullsize/videosoriginal'
-        out_root_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_motionbert'
+        out_root_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_motionbert'
         motionbert_inference(in_root_path, out_root_path, selected_subjects, device="cpu")
 
 if __name__ == "__main__":

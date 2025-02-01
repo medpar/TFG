@@ -54,6 +54,8 @@ def interpolate_nose(df, marker_mapping):
     df["Nose_z"] = head_z
     return df
 
+
+# CAMBIAR ESTO
 def csv_to_trc(csv_path, output_path='output.trc', transformer=None):
     
     df = pd.read_csv(csv_path)
