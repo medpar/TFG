@@ -2,21 +2,21 @@ import os
 import shutil
 
 if platform.system() == "Linux":
-    in_base_dir = None
-    out_base_dir = None
+    in_base_path = None
+    out_base_path = None
 elif platform.system() == "Darwin":
-    in_base_dir = '/Volumes/Aux/vidimu_pipeline/VIDIMU/dataset/videoandimus'
-    out_base_dir = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_imus'
+    in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/dataset/videoandimus'
+    out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_imus'
 
 extensions = (".sto", ".raw", ".mot")
 
-def get_imu_data(in_base_dir, out_base_dir, extensions):
+def get_imu_data(in_base_path, out_base_path, extensions):
     # Get all directories in the input base directory
-    subdirectories = [d for d in os.listdir(in_base_dir) if os.path.isdir(os.path.join(in_base_dir, d))]
+    subdirectories = [d for d in os.listdir(in_base_path) if os.path.isdir(os.path.join(in_base_path, d))]
     
     for subdir in subdirectories:
-        input_dir = os.path.join(in_base_dir, subdir)
-        output_dir = os.path.join(out_base_dir, subdir)
+        input_dir = os.path.join(in_base_path, subdir)
+        output_dir = os.path.join(out_base_path, subdir)
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -29,4 +29,4 @@ def get_imu_data(in_base_dir, out_base_dir, extensions):
                 print(f"Copied {src_path} to {dst_path}")
 
 
-get_imu_data(in_base_dir, out_base_dir, extensions)
+get_imu_data(in_base_path, out_base_path, extensions)
