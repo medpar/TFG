@@ -55,7 +55,7 @@ def convert_json_to_csv(selected_subjects, out_root_path):
 
                     # Prepare data for CSV conversion
                     frames_data = []
-                    for frame in data:
+                    for frame in data["instance_info"]:
                         frame_id = frame["frame_id"]
                         keypoints = frame["instances"][0]["keypoints"]
 
@@ -83,4 +83,4 @@ def convert_json_to_csv(selected_subjects, out_root_path):
                     continue
 
 convert_json_to_csv(selected_subjects, out_base_path)
-print("\nConversion process completed. Some files may have been skipped due to errors.")
+print("\nConversion process completed.")
