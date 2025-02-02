@@ -25,6 +25,7 @@ motsignals_range = {
 def compareAllSubjectsOneActivity(csvlog,
                                   csv_bodytrack_path,
                                   csv_motionbert_path,
+                                  csv_mmpose_path,
                                   csv_motionagformer_path,
                                   imu_inpath,
                                   outpath,
@@ -48,8 +49,9 @@ def compareAllSubjectsOneActivity(csvlog,
     for idx, subject in enumerate(subjects_to_plot):
         dfmot = None
         dfcsv_bodytrack = None
-        dfcsv_motionbert = None
+        dfcsv_mmpose = None
         dfcsv_motionagformer = None
+        dfcsv_motionbert = None
 
         # Try each trial (T01...T05) until valid data is found for this subject
         for trial in ["T01", "T02", "T03", "T04", "T05"]:
@@ -59,24 +61,26 @@ def compareAllSubjectsOneActivity(csvlog,
             # Build folder paths for this subject
             imu_folder = os.path.join(imu_inpath, subject)
             csv_folder_bodytrack = os.path.join(csv_bodytrack_path, subject)
-            csv_folder_motionbert = os.path.join(csv_motionbert_path, subject)
+            csv_folder_mmpose = os.path.join(csv_mmpose_path, subject)
             csv_folder_motionagformer = os.path.join(csv_motionagformer_path, subject)
+            csv_folder_motionbert = os.path.join(csv_motionbert_path, subject)
             
             # Build full paths to the expected files
             imu_filepath = os.path.join(imu_folder, motfilename)
             csv_filepath_bodytrack = os.path.join(csv_folder_bodytrack, f"{motsubjacttrial}.csv")
-            csv_filepath_motionbert = os.path.join(csv_folder_motionbert, f"{motsubjacttrial}.csv")
+            csv_filepath_mmpose = os.path.join(csv_folder_mmpose, f"{motsubjacttrial}.csv")
             csv_filepath_motionagformer = os.path.join(csv_folder_motionagformer, f"{motsubjacttrial}.csv")
+            csv_filepath_motionbert = os.path.join(csv_folder_motionbert, f"{motsubjacttrial}.csv")
             
-            # Check if all required files exist; if not, try the next trial
+            # Check if all required files exist
             if not os.path.exists(imu_filepath) or \
                not os.path.exists(csv_filepath_bodytrack) or \
-               not os.path.exists(csv_filepath_motionbert) or \
-               not os.path.exists(csv_filepath_motionagformer):
+               not os.path.exists(csv_filepath_mmpose) or \
+               not os.path.exists(csv_filepath_motionagformer) or \
+               not os.path.exists(csv_filepath_motionbert):
                 continue
             else:
-                # Load the IMU data (mot file) and CSV data from the _bodytrack folder.
-                # (The IMU file is the same for all three CSV sources.)
+                # Load data from all sources
                 dfmot, dfcsv_bodytrack = fileutil.readMOTandCSV(
                     imu_folder=imu_folder,
                     csv_folder=csv_folder_bodytrack,
@@ -84,10 +88,9 @@ def compareAllSubjectsOneActivity(csvlog,
                     activity=activity,
                     trial=trial
                 )
-                # Load the CSV files from the other two folders (ignore the IMU file return value)
-                _, dfcsv_motionbert = fileutil.readMOTandCSV(
+                _, dfcsv_mmpose = fileutil.readMOTandCSV(
                     imu_folder=imu_folder,
-                    csv_folder=csv_folder_motionbert,
+                    csv_folder=csv_folder_mmpose,
                     subject=subject,
                     activity=activity,
                     trial=trial
@@ -99,68 +102,77 @@ def compareAllSubjectsOneActivity(csvlog,
                     activity=activity,
                     trial=trial
                 )
-                break  # Use the first trial that contains all data
+                _, dfcsv_motionbert = fileutil.readMOTandCSV(
+                    imu_folder=imu_folder,
+                    csv_folder=csv_folder_motionbert,
+                    subject=subject,
+                    activity=activity,
+                    trial=trial
+                )
+                break  # Use the first trial with complete data
 
-        if dfmot is None or dfcsv_bodytrack is None or dfcsv_motionbert is None or dfcsv_motionagformer is None:
-            # Print the folders that were checked and the missing data
-            # print(f"IMU folder: {imu_folder}")
-            # print(f"BodyTrack CSV folder: {csv_folder_bodytrack}")
-            # print(f"MotionBERT CSV folder: {csv_folder_motionbert}")
-            # print(f"MotionAGFormer CSV folder: {csv_folder_motionagformer}")
+        if dfmot is None or dfcsv_bodytrack is None or dfcsv_mmpose is None or dfcsv_motionagformer is None or dfcsv_motionbert is None:
             print(f"Data not found for subject {subject}")
             continue
 
-        # Extract the main joint and corresponding bones from the mot and csv files.
-        # (Assumes that the function getMainJointFromMotAndMainBonesFromCSV is defined/imported.)
+        # Extract joint data from all models
         jointMot, bonesCSV_bodytrack = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_bodytrack, activity)
-        _, bonesCSV_motionbert = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_motionbert, activity)
+        _, bonesCSV_mmpose = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_mmpose, activity)
         _, bonesCSV_motionagformer = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_motionagformer, activity)
+        _, bonesCSV_motionbert = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_motionbert, activity)
 
-        # Get IMU joint angles from the mot file
+        # Get joint angles from all sources
         jointangle_imus = fileutil.getJointAngleMotAsNP(dfmot, jointMot)
-
-        # Get video joint angles from the CSV files
         jointangle_video_bodytrack = fileutil.getJointAngleCsvAsNP(bonesCSV_bodytrack)
-        jointangle_video_motionbert = fileutil.getJointAngleCsvAsNP(bonesCSV_motionbert)
+        jointangle_video_mmpose = fileutil.getJointAngleCsvAsNP(bonesCSV_mmpose)
         jointangle_video_motionagformer = fileutil.getJointAngleCsvAsNP(bonesCSV_motionagformer)
+        jointangle_video_motionbert = fileutil.getJointAngleCsvAsNP(bonesCSV_motionbert)
 
-        # Process the signals: interpolate missing values, downsample, and smooth
+        # Process signals
         jointangle_video_bodytrack_inter = signalutil.fill_nan(jointangle_video_bodytrack)
-        jointangle_video_motionbert_inter = signalutil.fill_nan(jointangle_video_motionbert)
+        jointangle_video_mmpose_inter = signalutil.fill_nan(jointangle_video_mmpose)
         jointangle_video_motionagformer_inter = signalutil.fill_nan(jointangle_video_motionagformer)
+        jointangle_video_motionbert_inter = signalutil.fill_nan(jointangle_video_motionbert)
+        
         jointangle_imus_cutdown = signalutil.downsampleSignal(jointangle_imus, 50, 30)
         jointangle_imus_cutfilt = signalutil.applyMovingAverageFilter(jointangle_imus_cutdown)
         jointangle_video_bodytrack_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_bodytrack_inter)
-        jointangle_video_motionbert_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_motionbert_inter)
+        jointangle_video_mmpose_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_mmpose_inter)
         jointangle_video_motionagformer_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_motionagformer_inter)
+        jointangle_video_motionbert_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_motionbert_inter)
 
-        # Center the signals (subtract a moving mean) to improve synchronization
+        # Center signals
         jointangle_imus_centered = signalutil.centerSignalInMean(jointangle_imus_cutfilt,
                                                                  samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
         jointangle_video_bodytrack_centered = signalutil.centerSignalInMean(jointangle_video_bodytrack_cutfilt,
                                                                             samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
-        jointangle_video_motionbert_centered = signalutil.centerSignalInMean(jointangle_video_motionbert_cutfilt,
-                                                                             samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
+        jointangle_video_mmpose_centered = signalutil.centerSignalInMean(jointangle_video_mmpose_cutfilt,
+                                                                         samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
         jointangle_video_motionagformer_centered = signalutil.centerSignalInMean(jointangle_video_motionagformer_cutfilt,
                                                                                  samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
+        jointangle_video_motionbert_centered = signalutil.centerSignalInMean(jointangle_video_motionbert_cutfilt,
+                                                                             samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
 
-        # Synchronize signals by cutting them to the same final length
+        # Synchronize signals
         FINAL_LENGTH = min(len(jointangle_imus_centered),
                            len(jointangle_video_bodytrack_centered),
-                           len(jointangle_video_motionbert_centered),
-                           len(jointangle_video_motionagformer_centered))
+                           len(jointangle_video_mmpose_centered),
+                           len(jointangle_video_motionagformer_centered),
+                           len(jointangle_video_motionbert_centered))
         jointangle_imus_shift = jointangle_imus_centered[:FINAL_LENGTH]
         jointangle_video_bodytrack_shift = jointangle_video_bodytrack_centered[:FINAL_LENGTH]
-        jointangle_video_motionbert_shift = jointangle_video_motionbert_centered[:FINAL_LENGTH]
+        jointangle_video_mmpose_shift = jointangle_video_mmpose_centered[:FINAL_LENGTH]
         jointangle_video_motionagformer_shift = jointangle_video_motionagformer_centered[:FINAL_LENGTH]
+        jointangle_video_motionbert_shift = jointangle_video_motionbert_centered[:FINAL_LENGTH]
 
-        # Plot the synchronized signals for the subject
+        # Plot all signals
         ax = axes[idx]
         X = np.arange(FINAL_LENGTH)
         ax.plot(X, jointangle_imus_shift, 'r', label='IMUs')
         ax.plot(X, jointangle_video_bodytrack_shift, 'b', label='BodyTrack')
-        ax.plot(X, jointangle_video_motionbert_shift, 'g', label='MotionBERT')
+        ax.plot(X, jointangle_video_mmpose_shift, 'g', label='MMPose')
         ax.plot(X, jointangle_video_motionagformer_shift, 'm', label='MotionAGFormer')
+        ax.plot(X, jointangle_video_motionbert_shift, 'k', label='MotionBERT')  
         ax.set_title(f"Subject: {subject}")
         ax.set_xlabel("Samples (30 Hz)")
         ax.set_ylabel("Degrees")
@@ -178,6 +190,7 @@ def compareAllSubjectsOneActivity(csvlog,
 
 def calculateAndPlotRMSE(csv_bodytrack_path,
                          csv_motionbert_path,
+                         csv_mmpose_path,
                          csv_motionagformer_path,
                          imu_inpath,
                          subjects,
@@ -186,36 +199,37 @@ def calculateAndPlotRMSE(csv_bodytrack_path,
                          RMSE_SAMPLES=200,
                          MAX_SYNC_OVERLAP=15,
                          FINAL_LENGTH=None):
-    rmse_results = {"Subject": [], "BodyTrack": [], "MotionBERT": [], "MotionAGFormer": []}
+    rmse_results = {"Subject": [], "BodyTrack": [], "mmpose": [], "MotionAGFormer": [], "MotionBERT": []}
 
     for subject in subjects:
         dfmot = None
         dfcsv_bodytrack = None
-        dfcsv_motionbert = None
+        dfcsv_mmpose = None
         dfcsv_motionagformer = None
+        dfcsv_motionbert = None
 
-        # Try each trial (T01...T05) until valid data is found for this subject
+        # Try each trial until valid data is found
         for trial in ["T01", "T02", "T03", "T04", "T05"]:
             motsubjacttrial = f"{subject}_{activity}_{trial}"
             motfilename = f"ik_{motsubjacttrial}.mot"
 
-            # Build folder paths for this subject
             imu_folder = os.path.join(imu_inpath, subject)
             csv_folder_bodytrack = os.path.join(csv_bodytrack_path, subject)
-            csv_folder_motionbert = os.path.join(csv_motionbert_path, subject)
+            csv_folder_mmpose = os.path.join(csv_mmpose_path, subject)
             csv_folder_motionagformer = os.path.join(csv_motionagformer_path, subject)
+            csv_folder_motionbert = os.path.join(csv_motionbert_path, subject)
             
-            # Full paths for the required files
             imu_filepath = os.path.join(imu_folder, motfilename)
             csv_filepath_bodytrack = os.path.join(csv_folder_bodytrack, f"{motsubjacttrial}.csv")
-            csv_filepath_motionbert = os.path.join(csv_folder_motionbert, f"{motsubjacttrial}.csv")
+            csv_filepath_mmpose = os.path.join(csv_folder_mmpose, f"{motsubjacttrial}.csv")
             csv_filepath_motionagformer = os.path.join(csv_folder_motionagformer, f"{motsubjacttrial}.csv")
+            csv_filepath_motionbert = os.path.join(csv_folder_motionbert, f"{motsubjacttrial}.csv")
             
-            # Check if all files exist for this trial
             if not os.path.exists(imu_filepath) or \
                not os.path.exists(csv_filepath_bodytrack) or \
-               not os.path.exists(csv_filepath_motionbert) or \
-               not os.path.exists(csv_filepath_motionagformer):
+               not os.path.exists(csv_filepath_mmpose) or \
+               not os.path.exists(csv_filepath_motionagformer) or \
+               not os.path.exists(csv_filepath_motionbert):
                 continue
             else:
                 dfmot, dfcsv_bodytrack = fileutil.readMOTandCSV(
@@ -225,9 +239,9 @@ def calculateAndPlotRMSE(csv_bodytrack_path,
                     activity=activity,
                     trial=trial
                 )
-                _, dfcsv_motionbert = fileutil.readMOTandCSV(
+                _, dfcsv_mmpose = fileutil.readMOTandCSV(
                     imu_folder=imu_folder,
-                    csv_folder=csv_folder_motionbert,
+                    csv_folder=csv_folder_mmpose,
                     subject=subject,
                     activity=activity,
                     trial=trial
@@ -239,76 +253,98 @@ def calculateAndPlotRMSE(csv_bodytrack_path,
                     activity=activity,
                     trial=trial
                 )
-                break  # use the first trial that contains complete data
+                _, dfcsv_motionbert = fileutil.readMOTandCSV(
+                    imu_folder=imu_folder,
+                    csv_folder=csv_folder_motionbert,
+                    subject=subject,
+                    activity=activity,
+                    trial=trial
+                )
+                break
 
-        if dfmot is None or dfcsv_bodytrack is None or dfcsv_motionbert is None or dfcsv_motionagformer is None:
+        if dfmot is None or dfcsv_bodytrack is None or dfcsv_mmpose is None or dfcsv_motionagformer is None or dfcsv_motionbert is None:
             print(f"Data not found for subject {subject}")
             continue
 
-        # Process the joint angles from the mot and csv files
+        # Process joint angles
         jointMot, bonesCSV_bodytrack = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_bodytrack, activity)
-        _, bonesCSV_motionbert = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_motionbert, activity)
+        _, bonesCSV_mmpose = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_mmpose, activity)
         _, bonesCSV_motionagformer = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_motionagformer, activity)
+        _, bonesCSV_motionbert = getMainJointFromMotAndMainBonesFromCSV(dfmot, dfcsv_motionbert, activity)
 
         jointangle_imus = fileutil.getJointAngleMotAsNP(dfmot, jointMot)
         jointangle_video_bodytrack = fileutil.getJointAngleCsvAsNP(bonesCSV_bodytrack)
-        jointangle_video_motionbert = fileutil.getJointAngleCsvAsNP(bonesCSV_motionbert)
+        jointangle_video_mmpose = fileutil.getJointAngleCsvAsNP(bonesCSV_mmpose)
         jointangle_video_motionagformer = fileutil.getJointAngleCsvAsNP(bonesCSV_motionagformer)
+        jointangle_video_motionbert = fileutil.getJointAngleCsvAsNP(bonesCSV_motionbert)
 
-        # Process the signals: interpolate, downsample (for IMUs) and smooth
+        # Process signals
         jointangle_video_bodytrack_inter = signalutil.fill_nan(jointangle_video_bodytrack)
-        jointangle_video_motionbert_inter = signalutil.fill_nan(jointangle_video_motionbert)
+        jointangle_video_mmpose_inter = signalutil.fill_nan(jointangle_video_mmpose)
         jointangle_video_motionagformer_inter = signalutil.fill_nan(jointangle_video_motionagformer)
+        jointangle_video_motionbert_inter = signalutil.fill_nan(jointangle_video_motionbert)
+        
         jointangle_imus_cutfilt = signalutil.applyMovingAverageFilter(
             signalutil.downsampleSignal(jointangle_imus, 50, 30))
         jointangle_video_bodytrack_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_bodytrack_inter)
-        jointangle_video_motionbert_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_motionbert_inter)
+        jointangle_video_mmpose_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_mmpose_inter)
         jointangle_video_motionagformer_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_motionagformer_inter)
+        jointangle_video_motionbert_cutfilt = signalutil.applyMovingAverageFilter(jointangle_video_motionbert_inter)
 
-        # Center the signals to improve synchronization
+        # Center signals
         jointangle_imus_centered = signalutil.centerSignalInMean(jointangle_imus_cutfilt,
                                                                  samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
         jointangle_video_bodytrack_centered = signalutil.centerSignalInMean(jointangle_video_bodytrack_cutfilt,
                                                                             samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
-        jointangle_video_motionbert_centered = signalutil.centerSignalInMean(jointangle_video_motionbert_cutfilt,
-                                                                             samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
+        jointangle_video_mmpose_centered = signalutil.centerSignalInMean(jointangle_video_mmpose_cutfilt,
+                                                                         samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
         jointangle_video_motionagformer_centered = signalutil.centerSignalInMean(jointangle_video_motionagformer_cutfilt,
                                                                                  samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
+        jointangle_video_motionbert_centered = signalutil.centerSignalInMean(jointangle_video_motionbert_cutfilt,
+                                                                             samples=RMSE_SAMPLES + MAX_SYNC_OVERLAP)
 
-        # Cut all signals to the same final length for comparison
+        # Synchronize signals
         FINAL_LENGTH = min(len(jointangle_imus_centered),
                            len(jointangle_video_bodytrack_centered),
-                           len(jointangle_video_motionbert_centered),
-                           len(jointangle_video_motionagformer_centered))
+                           len(jointangle_video_mmpose_centered),
+                           len(jointangle_video_motionagformer_centered),
+                           len(jointangle_video_motionbert_centered))
         jointangle_imus_shift = jointangle_imus_centered[:FINAL_LENGTH]
         jointangle_video_bodytrack_shift = jointangle_video_bodytrack_centered[:FINAL_LENGTH]
-        jointangle_video_motionbert_shift = jointangle_video_motionbert_centered[:FINAL_LENGTH]
+        jointangle_video_mmpose_shift = jointangle_video_mmpose_centered[:FINAL_LENGTH]
         jointangle_video_motionagformer_shift = jointangle_video_motionagformer_centered[:FINAL_LENGTH]
+        jointangle_video_motionbert_shift = jointangle_video_motionbert_centered[:FINAL_LENGTH]
 
-        # Compute RMSE between the IMU signal and each CSV signal
+        # Calculate RMSE
         rmse_bodytrack = np.sqrt(np.mean((jointangle_imus_shift - jointangle_video_bodytrack_shift) ** 2))
-        rmse_motionbert = np.sqrt(np.mean((jointangle_imus_shift - jointangle_video_motionbert_shift) ** 2))
+        rmse_mmpose = np.sqrt(np.mean((jointangle_imus_shift - jointangle_video_mmpose_shift) ** 2))
         rmse_motionagformer = np.sqrt(np.mean((jointangle_imus_shift - jointangle_video_motionagformer_shift) ** 2))
+        rmse_motionbert = np.sqrt(np.mean((jointangle_imus_shift - jointangle_video_motionbert_shift) ** 2))
 
-        # Save the RMSE values for this subject
         rmse_results["Subject"].append(subject)
         rmse_results["BodyTrack"].append(rmse_bodytrack)
-        rmse_results["MotionBERT"].append(rmse_motionbert)
+        rmse_results["mmpose"].append(rmse_mmpose)
         rmse_results["MotionAGFormer"].append(rmse_motionagformer)
+        rmse_results["MotionBERT"].append(rmse_motionbert)
 
-    # Calculate the average RMSE across all subjects for each model
+    # Calculate averages
     avg_rmse_bodytrack = np.mean(rmse_results["BodyTrack"])
-    avg_rmse_motionbert = np.mean(rmse_results["MotionBERT"])
+    avg_rmse_mmpose = np.mean(rmse_results["mmpose"])
     avg_rmse_motionagformer = np.mean(rmse_results["MotionAGFormer"])
+    avg_rmse_motionbert = np.mean(rmse_results["MotionBERT"])
 
-    # Plot individual RMSE values per subject (left) and average RMSE per model (right)
+    # Plot results
     fig, ax = plt.subplots(1, 2, figsize=(14, 6))
 
     subjects_list = rmse_results["Subject"]
     x = np.arange(len(subjects_list))
-    ax[0].bar(x - 0.2, rmse_results["BodyTrack"], width=0.2, label="BodyTrack", align='center', color='#4A90E2')
-    ax[0].bar(x, rmse_results["MotionBERT"], width=0.2, label="MotionBERT", align='center', color='#50C878')
-    ax[0].bar(x + 0.2, rmse_results["MotionAGFormer"], width=0.2, label="MotionAGFormer", align='center', color='#9B59B6')
+    colors = ['#4A90E2', '#50C878', '#9B59B6', '#FFA500']
+    width = 0.18
+    
+    ax[0].bar(x - 0.27, rmse_results["BodyTrack"], width=width, label="BodyTrack", color=colors[0])
+    ax[0].bar(x - 0.09, rmse_results["mmpose"], width=width, label="MMPose", color=colors[1])
+    ax[0].bar(x + 0.09, rmse_results["MotionAGFormer"], width=width, label="MotionAGFormer", color=colors[2])
+    ax[0].bar(x + 0.27, rmse_results["MotionBERT"], width=width, label="MotionBERT", color=colors[3])
     ax[0].set_xticks(x)
     ax[0].set_xticklabels(subjects_list, rotation=45)
     ax[0].set_xlabel("Subjects")
@@ -316,9 +352,9 @@ def calculateAndPlotRMSE(csv_bodytrack_path,
     ax[0].set_title(f"RMSE Comparison for {activity_legend} ({activity})")
     ax[0].legend()
 
-    ax[1].bar(['BodyTrack', 'MotionBERT', 'MotionAGFormer'],
-              [avg_rmse_bodytrack, avg_rmse_motionbert, avg_rmse_motionagformer],
-              color=['#4A90E2', '#50C878', '#9B59B6'], width=0.6)
+    models = ['BodyTrack', 'MMPose', 'MotionAGFormer', 'MotionBERT']
+    averages = [avg_rmse_bodytrack, avg_rmse_mmpose, avg_rmse_motionagformer, avg_rmse_motionbert]
+    ax[1].bar(models, averages, color=colors, width=0.6)
     ax[1].set_xlabel("Model")
     ax[1].set_ylabel("Average RMSE (Degrees)")
     ax[1].set_title(f"Average RMSE for Activity {activity} ({activity_legend})")
@@ -328,7 +364,8 @@ def calculateAndPlotRMSE(csv_bodytrack_path,
 
     avg_rmse_results = {
         "BodyTrack": avg_rmse_bodytrack,
-        "MotionBERT": avg_rmse_motionbert,
-        "MotionAGFormer": avg_rmse_motionagformer
+        "MMPose": avg_rmse_mmpose,
+        "MotionAGFormer": avg_rmse_motionagformer,
+        "MotionBERT": avg_rmse_motionbert
     }
     return rmse_results, avg_rmse_results
