@@ -5,11 +5,16 @@ sys.path.append(os.path.dirname(os.getcwd())) # Add project dir to path
 from utils.fileProcessing import getJoints3DFromFile, convertJoints3DToDataframe
 
 if platform.system() == "Linux":
-    in_base_path = None
-    out_base_path = None
+    dataset_path = '/mnt/d/vidimu_pipeline/VIDIMU'
 elif platform.system() == "Darwin":
-    in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/pose3d_bodytrack'
-    out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_bodytrack'
+    dataset_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU'
+
+in_base_path = os.path.join(dataset_path, 'benchmark/pose3d_bodytrack')
+out_base_path = os.path.join(dataset_path, 'benchmark/dataset_bodytrack')
+
+# Create output directory if it doesn't exist
+if not os.path.exists(out_base_path):
+    os.makedirs(out_base_path)
 
 selected_subjects = ["S40","S41","S42","S44","S46","S47","S48","S49","S50","S51","S52","S53","S54","S55","S56","S57"]
 

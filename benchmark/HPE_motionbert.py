@@ -51,7 +51,7 @@ def motionbert_inference(in_base_path, out_base_path, selected_subjects=None, de
                             continue
                         
                         input_video = os.path.join(subject_in_path, video_file)
-                        logger.info(f"  Inference on video: {input_video}")
+                        logger.info(f"  Inference on video: {video_file}")
                         
                         # Run inference on the current video
                         result_generator = inferencer(

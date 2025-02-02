@@ -1,12 +1,18 @@
 import os
+import platform
 import shutil
 
 if platform.system() == "Linux":
-    in_base_path = None
-    out_base_path = None
+    dataset_path = '/mnt/d/vidimu_pipeline/VIDIMU'
 elif platform.system() == "Darwin":
-    in_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/dataset/videoandimus'
-    out_base_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU/benchmark/dataset_imus'
+    dataset_path = '/Volumes/Aux/vidimu_pipeline/VIDIMU'
+
+in_base_path = os.path.join(dataset_path, 'dataset/videoandimus')
+out_base_path = os.path.join(dataset_path, 'benchmark/dataset_imus')
+
+# Create output directory if it doesn't exist
+if not os.path.exists(out_base_path):
+    os.makedirs(out_base_path)
 
 extensions = (".sto", ".raw", ".mot")
 
