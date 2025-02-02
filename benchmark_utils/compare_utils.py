@@ -21,14 +21,7 @@ motsignals_range = {
     'elbow_flex_l': (-10, 190),
 }
 
-###############################################################################
-# Function: compareAllSubjectsOneActivity
-#
-# This function loads the IMU (.mot) file from the imu folder and the CSV
-# files from the three different CSV folders (_bodytrack, _motionbert, _motionagformer).
-# It then processes the signals, synchronizes them, and plots the four signals
-# for each subject.
-###############################################################################
+
 def compareAllSubjectsOneActivity(csvlog,
                                   csv_bodytrack_path,
                                   csv_motionbert_path,
@@ -182,17 +175,11 @@ def compareAllSubjectsOneActivity(csvlog,
 
     return rmse_list
 
-###############################################################################
-# Function: calculateAndPlotRMSE
-#
-# This function computes the RMSE between the IMU joint angles (from the .mot file)
-# and each of the three CSV sources for every subject. It then plots both the individual
-# RMSE values per subject and the average RMSE for each model.
-###############################################################################
-def calculateAndPlotRMSE(imu_inpath,
-                         csv_bodytrack_path,
+
+def calculateAndPlotRMSE(csv_bodytrack_path,
                          csv_motionbert_path,
                          csv_motionagformer_path,
+                         imu_inpath,
                          subjects,
                          activity,
                          activity_legend,
@@ -319,9 +306,9 @@ def calculateAndPlotRMSE(imu_inpath,
 
     subjects_list = rmse_results["Subject"]
     x = np.arange(len(subjects_list))
-    ax[0].bar(x - 0.2, rmse_results["BodyTrack"], width=0.2, label="BodyTrack", align='center', color='#5DA5DA')
-    ax[0].bar(x, rmse_results["MotionBERT"], width=0.2, label="MotionBERT", align='center', color='#60BD68')
-    ax[0].bar(x + 0.2, rmse_results["MotionAGFormer"], width=0.2, label="MotionAGFormer", align='center', color='#B276B2')
+    ax[0].bar(x - 0.2, rmse_results["BodyTrack"], width=0.2, label="BodyTrack", align='center', color='#4A90E2')
+    ax[0].bar(x, rmse_results["MotionBERT"], width=0.2, label="MotionBERT", align='center', color='#50C878')
+    ax[0].bar(x + 0.2, rmse_results["MotionAGFormer"], width=0.2, label="MotionAGFormer", align='center', color='#9B59B6')
     ax[0].set_xticks(x)
     ax[0].set_xticklabels(subjects_list, rotation=45)
     ax[0].set_xlabel("Subjects")
@@ -331,7 +318,7 @@ def calculateAndPlotRMSE(imu_inpath,
 
     ax[1].bar(['BodyTrack', 'MotionBERT', 'MotionAGFormer'],
               [avg_rmse_bodytrack, avg_rmse_motionbert, avg_rmse_motionagformer],
-              color=['#5DA5DA', '#60BD68', '#B276B2'], width=0.6)
+              color=['#4A90E2', '#50C878', '#9B59B6'], width=0.6)
     ax[1].set_xlabel("Model")
     ax[1].set_ylabel("Average RMSE (Degrees)")
     ax[1].set_title(f"Average RMSE for Activity {activity} ({activity_legend})")
