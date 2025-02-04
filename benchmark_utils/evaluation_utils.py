@@ -9,6 +9,8 @@ import benchmark_utils.signal_utils as signalutil
 import benchmark_utils.file_utils as fileutil
 from benchmark_utils.sync_utils import getMainJointFromMotAndMainBonesFromCSV
 
+colors = ['#52B788', '#F4A261', '#9B59B6', '#3A86FF']
+
 # =====================================================
 # Basic Error Metrics and Statistical Tests
 # =====================================================
@@ -116,7 +118,7 @@ def calculateAllMetrics(signalA, signalB):
     return metrics
 
 # =====================================================
-# Aggregation, Plotting, and Summary Tables
+# Aggregation, Plotting, and Summary Tables (Per Activity)
 # =====================================================
 
 def calculateAndPlotAllMetrics(csv_bodytrack_path,
@@ -129,10 +131,15 @@ def calculateAndPlotAllMetrics(csv_bodytrack_path,
                                 activity_legend,
                                 RMSE_SAMPLES=200,
                                 MAX_SYNC_OVERLAP=15,
-                                FINAL_LENGTH=None):
+                                FINAL_LENGTH=None,
+                                out_path=None,
+                                filename_prefix="PerActivityMetrics"):
     """
-    For each subject, compute evaluation metrics (RMSE, MAE, NRMSE, Pearson correlation, R²)
-    between the gold-standard IMU signal and each DL model's output, then plot aggregated bar charts.
+    For each subject in the provided list, compute evaluation metrics (RMSE, MAE, NRMSE, Pearson correlation, R²)
+    between the gold-standard IMU signal and each DL model's output for a given activity. 
+    Then, plot aggregated bar charts comparing the models.
+    
+    The generated plots are saved to out_path (as SVG and PDF) using the provided filename_prefix.
     
     Returns a dictionary with metrics for each subject and model.
     """
@@ -209,7 +216,7 @@ def calculateAndPlotAllMetrics(csv_bodytrack_path,
                 break  # Use the first trial with complete data.
 
         if dfmot is None or dfcsv_bodytrack is None or dfcsv_mmpose is None or dfcsv_motionagformer is None or dfcsv_motionbert is None:
-            print(f"Data not found for subject {subject}")
+            print(f"Data not found for subject {subject} for activity {activity}")
             continue
 
         # Extract joint angles for the IMU (gold standard) and for each video-based model.
@@ -286,12 +293,11 @@ def calculateAndPlotAllMetrics(csv_bodytrack_path,
         metrics_results["MotionBERT_R2"].append(metrics_motionbert['R2'])
     
     # -------------------------
-    # Plot Aggregated Metrics as Bar Charts
+    # Plot Aggregated Metrics as Bar Charts (Per Activity)
     # -------------------------
     subjects_list = metrics_results["Subject"]
     x = np.arange(len(subjects_list))
     width = 0.18
-    colors = ['#52B788', '#F4A261', '#9B59B6', '#3A86FF']
 
     fig, ax = plt.subplots(2, 2, figsize=(16, 12))
     ax = ax.flatten()
@@ -342,6 +348,13 @@ def calculateAndPlotAllMetrics(csv_bodytrack_path,
     
     plt.suptitle(f"Evaluation Metrics for Activity {activity}: {activity_legend}", fontsize=18)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
+    # Save the per-activity plots if out_path is provided.
+    if out_path:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf')
     plt.show()
     
     return metrics_results
@@ -374,9 +387,9 @@ def createSummaryTable(metrics_results):
         })
     return pd.DataFrame(summary_list)
 
-def plotSummaryTable(summary_df, title="Aggregated Performance Metrics"):
+def plotSummaryTable(summary_df, title="Aggregated Performance Metrics", out_path=None, filename_prefix="SummaryTable"):
     """
-    Plot the aggregated summary table as a matplotlib table.
+    Plot the aggregated summary table as a matplotlib table and save it to out_path (SVG and PDF).
     """
     fig, ax = plt.subplots(figsize=(12, 3))
     ax.axis('tight')
@@ -387,4 +400,103 @@ def plotSummaryTable(summary_df, title="Aggregated Performance Metrics"):
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     plt.title(title)
+    plt.tight_layout()
+    if out_path:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf')
     plt.show()
+
+# =====================================================
+# Aggregation Across All Activities
+# =====================================================
+
+def benchmarkAllActivities(csv_bodytrack_path,
+                           csv_motionbert_path,
+                           csv_mmpose_path,
+                           csv_motionagformer_path,
+                           imu_inpath,
+                           subjects,
+                           activities,         # List of activity codes, e.g. ["A01", "A02", ...]
+                           activities_legend,  # List of corresponding human-readable labels
+                           RMSE_SAMPLES=200,
+                           MAX_SYNC_OVERLAP=15,
+                           FINAL_LENGTH=None,
+                           out_path=None,
+                           filename_prefix="OverallBenchmark"):
+    """
+    Loop over all activities and aggregate the performance metrics for each model across all subjects and activities.
+    
+    For each activity, call calculateAndPlotAllMetrics to get per-activity metrics, then combine the summary tables
+    (averaging the mean and standard deviations) to generate an overall performance summary and bar charts.
+    
+    All generated plots and tables are saved to out_path (as SVG and PDF).
+    
+    Returns:
+        overall_summary: A DataFrame with the aggregated performance metrics for each model across all activities.
+        per_activity_summaries: A dictionary mapping each activity to its summary DataFrame.
+    """
+    all_summaries = []
+    per_activity_summaries = {}
+    
+    for act, legend in zip(activities, activities_legend):
+        print(f"Processing activity {act}: {legend}")
+        metrics_results = calculateAndPlotAllMetrics(
+            csv_bodytrack_path=csv_bodytrack_path,
+            csv_motionbert_path=csv_motionbert_path,
+            csv_mmpose_path=csv_mmpose_path,
+            csv_motionagformer_path=csv_motionagformer_path,
+            imu_inpath=imu_inpath,
+            subjects=subjects,
+            activity=act,
+            activity_legend=legend,
+            RMSE_SAMPLES=RMSE_SAMPLES,
+            MAX_SYNC_OVERLAP=MAX_SYNC_OVERLAP,
+            FINAL_LENGTH=FINAL_LENGTH,
+            out_path=out_path,
+            filename_prefix=f"{filename_prefix}_{act}"
+        )
+        summary_df = createSummaryTable(metrics_results)
+        per_activity_summaries[act] = summary_df
+        all_summaries.append(summary_df)
+        # Also plot the summary table for the activity.
+        plotSummaryTable(summary_df, title=f"Aggregated Performance Metrics for Activity {act}: {legend}", out_path=out_path, filename_prefix=f"{filename_prefix}_{act}_Summary")
+    
+    # Combine summaries across activities by averaging the metric means and standard deviations.
+    # For simplicity, we average the values from each summary table.
+    combined = pd.concat(all_summaries)
+    overall_summary = combined.groupby("Model").mean().reset_index()
+    
+    # Plot overall aggregated bar charts for each metric.
+    models = overall_summary["Model"].tolist()
+    x = np.arange(len(models))
+    width = 0.2
+    
+    # Create a figure for overall metrics.
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10))
+    axs = axs.flatten()
+    
+    metric_names = ["Mean_RMSE", "Mean_MAE", "Mean_NRMSE", "Mean_Corr", "Mean_R2"]
+    titles = ["Overall RMSE", "Overall MAE", "Overall NRMSE", "Overall Pearson Corr", "Overall R²"]
+    
+    for i, (metric, title) in enumerate(zip(metric_names, titles)):
+        axs[i].bar(x, overall_summary[metric], width=width, color=colors[:len(models)])
+        axs[i].set_xticks(x)
+        axs[i].set_xticklabels(models, rotation=45)
+        axs[i].set_title(title)
+        axs[i].set_ylabel(metric)
+    
+    plt.suptitle("Overall Aggregated Performance Metrics Across All Activities", fontsize=20)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    if out_path:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}_Overall.svg"), format='svg')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}_Overall.pdf"), format='pdf')
+    plt.show()
+    
+    # Plot and save the overall summary table.
+    plotSummaryTable(overall_summary, title="Overall Aggregated Performance Summary (All Activities)", out_path=out_path, filename_prefix=f"{filename_prefix}_OverallSummary")
+    
+    return overall_summary, per_activity_summaries
