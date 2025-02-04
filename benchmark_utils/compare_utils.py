@@ -169,10 +169,10 @@ def compareAllSubjectsOneActivity(csvlog,
         ax = axes[idx]
         X = np.arange(FINAL_LENGTH)
         ax.plot(X, jointangle_imus_shift, 'r', label='IMUs')
-        ax.plot(X, jointangle_video_bodytrack_shift, 'b', label='BodyTrack')
-        ax.plot(X, jointangle_video_mmpose_shift, 'g', label='MMPose')
-        ax.plot(X, jointangle_video_motionagformer_shift, 'm', label='MotionAGFormer')
-        ax.plot(X, jointangle_video_motionbert_shift, 'k', label='MotionBERT')  
+        ax.plot(X, jointangle_video_bodytrack_shift, '#52B788', label='BodyTrack')        
+        ax.plot(X, jointangle_video_mmpose_shift, '#F4A261', label='MMPose')
+        ax.plot(X, jointangle_video_motionagformer_shift, '#9B59B6', label='MotionAGFormer')
+        ax.plot(X, jointangle_video_motionbert_shift, '#3A86FF', label='MotionBERT')  
         ax.set_title(f"Subject: {subject}")
         ax.set_xlabel("Samples (30 Hz)")
         ax.set_ylabel("Degrees")
@@ -338,7 +338,7 @@ def calculateAndPlotRMSE(csv_bodytrack_path,
 
     subjects_list = rmse_results["Subject"]
     x = np.arange(len(subjects_list))
-    colors = ['#4A90E2', '#50C878', '#9B59B6', '#FFA500']
+    colors = ['#52B788', '#F4A261', '#9B59B6', '#3A86FF']
     width = 0.18
     
     ax[0].bar(x - 0.27, rmse_results["BodyTrack"], width=width, label="BodyTrack", color=colors[0])
