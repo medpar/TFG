@@ -178,6 +178,8 @@ def compareAllSubjectsOneActivity(csvlog,
         ax.set_ylabel("Degrees")
         ax.legend()
 
+    
+
     plt.suptitle(f"Activity {activity}: {activity_legend}", fontsize=16, y=1.0)
     plt.tight_layout(pad=2.0)
     if outputfilename:
