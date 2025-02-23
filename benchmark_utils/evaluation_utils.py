@@ -290,9 +290,9 @@ def calculateAndPlotAllMetrics(csv_bodytrack_path,
         metrics_results["MotionBERT_Corr"].append(metrics_motionbert['Correlation'])
         metrics_results["MotionBERT_R2"].append(metrics_motionbert['R2'])
     
-    # -------------------------
+    # =====================================================
     # Plot Aggregated Metrics as Bar Charts (Per Activity)
-    # -------------------------
+    # =====================================================
     subjects_list = metrics_results["Subject"]
     x = np.arange(len(subjects_list))
     width = 0.18
@@ -460,3 +460,254 @@ def plotOverallBenchmark(per_activity_summaries, out_path=None, filename_prefix=
     plotSummaryTable(overall_summary, title="Overall Aggregated Performance Summary (All Activities)", out_path=out_path, filename_prefix=f"{filename_prefix}_Summary")
     
     return overall_summary
+
+
+# FINAL TABLE TO BE INCLUDED IN THE PAPER
+
+def createActivityRMSEComparisonTable(per_activity_summaries, activity_legends, out_path=None, filename_prefix="Overall_PerActivityRMSE_Table"):
+ 
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+    
+    # Model colors (matching the ones used in other visualizations)
+    model_colors = {
+        'MotionAGFormer': '#9B59B6',
+        'MotionBERT': '#3A86FF',
+        'MMPose': '#F4A261',
+        'BodyTrack': '#52B788'
+    }
+    
+    # Initialize the comparison DataFrame
+    activities = list(per_activity_summaries.keys())
+    models = ['MotionAGFormer', 'MotionBERT', 'MMPose', 'BodyTrack']
+    
+    # Create DataFrame to store RMSE values and standard deviations
+    comparison_data = []
+    
+    for activity in activities:
+        legend = activity_legends[activity]
+        activity_df = per_activity_summaries[activity]
+        row_data = {'ID': activity, 'Legend': legend}
+
+        
+        # Get RMSE values and standard deviations for each model
+        rmse_values = {}
+        for model in models:
+            mean_rmse = activity_df[activity_df['Model'] == model]['Mean_RMSE'].values[0]
+            std_rmse = activity_df[activity_df['Model'] == model]['Std_RMSE'].values[0]
+            rmse_values[model] = (mean_rmse, std_rmse)
+            row_data[model] = f"{mean_rmse:.2f} ± {std_rmse:.2f}"
+        
+        # Find best performing model (lowest RMSE)
+        best_model = min(rmse_values.items(), key=lambda x: x[1][0])[0]
+        row_data['BestModel'] = best_model
+        comparison_data.append(row_data)
+    
+    comparison_df = pd.DataFrame(comparison_data)
+    
+    # Create text table output
+    text_output = "Activity RMSE Comparison Table\n"
+    text_output += "=" * 80 + "\n"
+    header = f"{'ID':<10}{'Legend':>20}"
+    for model in models:
+        header += f"{model:>20}"
+    text_output += header + "\n"
+    text_output += "-" * 80 + "\n"
+    
+    for _, row in comparison_df.iterrows():
+        line = f"{row['ID']:<10}{row['Legend']:>20}"
+        for model in models:
+            value = row[model]
+            if row['BestModel'] == model:
+                value = f"*{value}*"  # Mark best value with asterisks
+            line += f"{value:>20}"
+        text_output += line + "\n"
+    
+    # Print text table
+    print(text_output)
+    
+    # Create matplotlib table visualization
+    fig, ax = plt.subplots(figsize=(15, 8))
+    ax.axis('tight')
+    ax.axis('off')
+    
+    # Prepare table data
+    table_data = []
+    for _, row in comparison_df.iterrows():
+        table_row = [row['ID'], row['Legend']]
+        table_row.extend([row[model] for model in models])
+        table_data.append(table_row)
+    
+    # Create table
+    col_labels = ['ID', 'Legend'] + models
+    table = ax.table(cellText=table_data,
+                    colLabels=col_labels,
+                    cellLoc='center',
+                    loc='center')
+    
+    # Style the table
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1.2, 1.5)
+    
+    # Color cells and highlight best performers
+    for idx, row in comparison_df.iterrows():
+        best_model = row['BestModel']
+        best_model_idx = models.index(best_model) + 2  # +1 because of Activity column
+        
+        # Color each model's cell with its respective color (at 20% opacity)
+        for model_idx, model in enumerate(models, 1):
+            cell = table[(idx + 1, model_idx+1)]
+            #cell.set_facecolor(f"{model_colors[model]}33")  # 33 is 20% opacity in hex
+            
+            # Make the best performing model's cell more prominent
+            if model == best_model:
+                cell.set_facecolor(f"{model_colors[model]}66")  # 66 is 40% opacity in hex
+                cell.set_text_props(weight='bold')
+    
+    # Style header row
+    for idx, model in enumerate(col_labels[1:], 1):
+        header_cell = table[(0, idx)]
+    #     header_cell.set_facecolor(f"{model_colors[model]}66")
+        header_cell.set_text_props(weight='bold', color='black')
+    
+    plt.title("Activity RMSE Comparison Across Models", pad=20)
+    
+    # Save the visualization if out_path is provided
+    if out_path:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg', bbox_inches='tight')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf', bbox_inches='tight')
+
+    comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
+    plt.show()
+    
+    return comparison_df
+
+
+def createActivityCorrelationComparisonTable(per_activity_summaries, activity_legends, out_path=None, filename_prefix="Overall_PerActivityCorrelation_Table"):
+ 
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+    
+    # Model colors (matching the ones used in other visualizations)
+    model_colors = {
+        'MotionAGFormer': '#9B59B6',
+        'MotionBERT': '#3A86FF',
+        'MMPose': '#F4A261',
+        'BodyTrack': '#52B788'
+    }
+    
+    # Initialize the comparison DataFrame
+    activities = list(per_activity_summaries.keys())
+    models = ['MotionAGFormer', 'MotionBERT', 'MMPose', 'BodyTrack']
+    
+    # Create DataFrame to store RMSE values and standard deviations
+    comparison_data = []
+    
+    for activity in activities:
+        legend = activity_legends[activity]
+        activity_df = per_activity_summaries[activity]
+        row_data = {'ID': activity, 'Legend': legend}
+
+        
+        # Get RMSE values and standard deviations for each model
+        rmse_values = {}
+        for model in models:
+            mean_rmse = activity_df[activity_df['Model'] == model]['Mean_Corr'].values[0]
+            std_rmse = activity_df[activity_df['Model'] == model]['Std_Corr'].values[0]
+            rmse_values[model] = (mean_rmse, std_rmse)
+            row_data[model] = f"{mean_rmse:.2f} ± {std_rmse:.2f}"
+        
+        # Find best performing model (lowest RMSE)
+        best_model = min(rmse_values.items(), key=lambda x: x[1][0])[0]
+        row_data['BestModel'] = best_model
+        comparison_data.append(row_data)
+    
+    comparison_df = pd.DataFrame(comparison_data)
+    
+    # Create text table output
+    text_output = "Activity Correlation Comparison Table\n"
+    text_output += "=" * 80 + "\n"
+    header = f"{'ID':<10}{'Legend':>20}"
+    for model in models:
+        header += f"{model:>20}"
+    text_output += header + "\n"
+    text_output += "-" * 80 + "\n"
+    
+    for _, row in comparison_df.iterrows():
+        line = f"{row['ID']:<10}{row['Legend']:>20}"
+        for model in models:
+            value = row[model]
+            if row['BestModel'] == model:
+                value = f"*{value}*"  # Mark best value with asterisks
+            line += f"{value:>20}"
+        text_output += line + "\n"
+    
+    # Print text table
+    print(text_output)
+    
+    # Create matplotlib table visualization
+    fig, ax = plt.subplots(figsize=(15, 8))
+    ax.axis('tight')
+    ax.axis('off')
+    
+    # Prepare table data
+    table_data = []
+    for _, row in comparison_df.iterrows():
+        table_row = [row['ID'], row['Legend']]
+        table_row.extend([row[model] for model in models])
+        table_data.append(table_row)
+    
+    # Create table
+    col_labels = ['ID', 'Legend'] + models
+    table = ax.table(cellText=table_data,
+                    colLabels=col_labels,
+                    cellLoc='center',
+                    loc='center')
+    
+    # Style the table
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1.2, 1.5)
+    
+    # Color cells and highlight best performers
+    for idx, row in comparison_df.iterrows():
+        best_model = row['BestModel']
+        best_model_idx = models.index(best_model) + 2  # +1 because of Activity column
+        
+        # Color each model's cell with its respective color (at 20% opacity)
+        for model_idx, model in enumerate(models, 1):
+            cell = table[(idx + 1, model_idx+1)]
+            #cell.set_facecolor(f"{model_colors[model]}33")  # 33 is 20% opacity in hex
+            
+            # Make the best performing model's cell more prominent
+            if model == best_model:
+                cell.set_facecolor(f"{model_colors[model]}66")  # 66 is 40% opacity in hex
+                cell.set_text_props(weight='bold')
+    
+    # Style header row
+    for idx, model in enumerate(col_labels[1:], 1):
+        header_cell = table[(0, idx)]
+    #     header_cell.set_facecolor(f"{model_colors[model]}66")
+        header_cell.set_text_props(weight='bold', color='black')
+    
+    plt.title("Activity Correlation Comparison Across Models", pad=20)
+    
+    # Save the visualization if out_path is provided
+    if out_path:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg', bbox_inches='tight')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf', bbox_inches='tight')
+
+    comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
+    plt.show()
+    
+    return comparison_df
+
