@@ -387,24 +387,35 @@ def createSummaryTable(metrics_results):
     return pd.DataFrame(summary_list)
 
 def plotSummaryTable(summary_df, title="Aggregated Performance Metrics", out_path=None, filename_prefix="SummaryTable"):
-    """
-    Plot the aggregated summary table as a matplotlib table and save it to out_path (SVG and PDF).
-    """
+    # Create a new DataFrame with mean ± std format
+    display_df = pd.DataFrame()
+    display_df['Model'] = summary_df['Model']
+    
+    metrics = ['RMSE', 'MAE', 'NRMSE', 'Corr', 'R2']
+    for metric in metrics:
+        mean_col = f'Mean_{metric}'
+        std_col = f'Std_{metric}'
+        display_df[metric] = summary_df[mean_col].round(2).astype(str) + ' ± ' + \
+                            summary_df[std_col].round(2).astype(str)
+    
     fig, ax = plt.subplots(figsize=(12, 3))
     ax.axis('tight')
     ax.axis('off')
-    table = ax.table(cellText=summary_df.round(3).values,
-                     colLabels=summary_df.columns,
-                     cellLoc='center', loc='center')
+    table = ax.table(cellText=display_df.values,
+                    colLabels=display_df.columns,
+                    cellLoc='center', loc='center')
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     plt.title(title)
     plt.tight_layout()
+    
     if out_path:
         if not os.path.exists(out_path):
             os.makedirs(out_path)
         plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg')
         plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf')
+        # Save the original summary_df with separate columns
+        display_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
     plt.show()
 
 # =====================================================
@@ -412,17 +423,7 @@ def plotSummaryTable(summary_df, title="Aggregated Performance Metrics", out_pat
 # =====================================================
 
 def plotOverallBenchmark(per_activity_summaries, out_path=None, filename_prefix="OverallBenchmark"):
-    """
-    Given a dictionary of per-activity summary DataFrames (each created via createSummaryTable),
-    aggregate them (by concatenating and grouping by Model) to produce an overall performance summary
-    across all activities and patients. Then, generate overall bar charts for the key metrics and plot
-    the overall summary table.
-    
-    All plots and tables are saved to out_path (SVG and PDF) using the provided filename_prefix.
-    
-    Returns:
-        overall_summary: A DataFrame with the aggregated performance metrics.
-    """
+
     # Combine all summary DataFrames.
     all_summaries = list(per_activity_summaries.values())
     combined = pd.concat(all_summaries)
@@ -454,6 +455,7 @@ def plotOverallBenchmark(per_activity_summaries, out_path=None, filename_prefix=
             os.makedirs(out_path)
         plt.savefig(os.path.join(out_path, f"{filename_prefix}_BarCharts.svg"), format='svg')
         plt.savefig(os.path.join(out_path, f"{filename_prefix}_BarCharts.pdf"), format='pdf')
+        overall_summary.round(2).to_csv(os.path.join(out_path, f"{filename_prefix}_Summary.csv"), index=False)
     plt.show()
     
     # Plot and save the overall summary table.
@@ -581,8 +583,7 @@ def createActivityRMSEComparisonTable(per_activity_summaries, activity_legends, 
             os.makedirs(out_path)
         plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg', bbox_inches='tight')
         plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf', bbox_inches='tight')
-
-    comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
+        comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
     plt.show()
     
     return comparison_df
@@ -608,7 +609,7 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
     models = ['MotionAGFormer', 'MotionBERT', 'MMPose', 'BodyTrack']
     
     # Create DataFrame to store RMSE values and standard deviations
-    comparison_data = []
+    comparison_data_corr = []
     
     for activity in activities:
         legend = activity_legends[activity]
@@ -617,19 +618,19 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
 
         
         # Get RMSE values and standard deviations for each model
-        rmse_values = {}
+        corr_values = {}
         for model in models:
-            mean_rmse = activity_df[activity_df['Model'] == model]['Mean_Corr'].values[0]
-            std_rmse = activity_df[activity_df['Model'] == model]['Std_Corr'].values[0]
-            rmse_values[model] = (mean_rmse, std_rmse)
-            row_data[model] = f"{mean_rmse:.2f} ± {std_rmse:.2f}"
+            mean_corr = activity_df[activity_df['Model'] == model]['Mean_Corr'].values[0]
+            std_corr = activity_df[activity_df['Model'] == model]['Std_Corr'].values[0]
+            corr_values[model] = (mean_corr, std_corr)
+            row_data[model] = f"{mean_corr:.2f} ± {std_corr:.2f}"
         
-        # Find best performing model (lowest RMSE)
-        best_model = min(rmse_values.items(), key=lambda x: x[1][0])[0]
+        # Find best performing model (max correlation)
+        best_model = max(corr_values.items(), key=lambda x: x[1][0])[0]
         row_data['BestModel'] = best_model
-        comparison_data.append(row_data)
+        comparison_data_corr.append(row_data)
     
-    comparison_df = pd.DataFrame(comparison_data)
+    comparison_df_corr = pd.DataFrame(comparison_data_corr)
     
     # Create text table output
     text_output = "Activity Correlation Comparison Table\n"
@@ -640,7 +641,7 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
     text_output += header + "\n"
     text_output += "-" * 80 + "\n"
     
-    for _, row in comparison_df.iterrows():
+    for _, row in comparison_df_corr.iterrows():
         line = f"{row['ID']:<10}{row['Legend']:>20}"
         for model in models:
             value = row[model]
@@ -658,15 +659,15 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
     ax.axis('off')
     
     # Prepare table data
-    table_data = []
-    for _, row in comparison_df.iterrows():
+    table_data_corr = []
+    for _, row in comparison_df_corr.iterrows():
         table_row = [row['ID'], row['Legend']]
         table_row.extend([row[model] for model in models])
-        table_data.append(table_row)
+        table_data_corr.append(table_row)
     
     # Create table
     col_labels = ['ID', 'Legend'] + models
-    table = ax.table(cellText=table_data,
+    table = ax.table(cellText=table_data_corr,
                     colLabels=col_labels,
                     cellLoc='center',
                     loc='center')
@@ -677,7 +678,7 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
     table.scale(1.2, 1.5)
     
     # Color cells and highlight best performers
-    for idx, row in comparison_df.iterrows():
+    for idx, row in comparison_df_corr.iterrows():
         best_model = row['BestModel']
         best_model_idx = models.index(best_model) + 2  # +1 because of Activity column
         
@@ -705,9 +706,84 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
             os.makedirs(out_path)
         plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), format='svg', bbox_inches='tight')
         plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), format='pdf', bbox_inches='tight')
-
-    comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
+        comparison_df_corr.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
     plt.show()
     
-    return comparison_df
+    return comparison_df_corr
+
+
+# Code for the radar plots
+def plotRadarAggregatedMetrics(summary_df, out_path=None, filename_prefix="RadarPlotOverlay"):
+    """
+    Create a single radar/spider plot overlaying aggregated performance metrics for all models.
+    This version normalizes RMSE and MAE (the only metrics not already in [0,1]) using min–max scaling,
+    so that all metrics are on the same scale.
+    
+    Parameters:
+        summary_df: DataFrame with aggregated metrics per model. It must contain columns:
+                    'Model', 'Mean_RMSE', 'Mean_MAE', 'Mean_NRMSE', 'Mean_Corr', 'Mean_R2'
+        out_path: Optional directory where the plot will be saved.
+        filename_prefix: Prefix for the saved file name.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import os
+
+    # Define the metrics to plot and their labels.
+    metrics = ['RMSE', 'MAE', 'NRMSE', 'Corr', 'R2']
+    
+    # Colors for each model (using the same scheme as in your other plots).
+    model_colors = {
+        'BodyTrack': '#52B788',
+        'MMPose': '#F4A261',
+        'MotionAGFormer': '#9B59B6',
+        'MotionBERT': '#3A86FF'
+    }
+    
+    # Prepare normalized values for each metric.
+    # For RMSE and MAE, apply min–max normalization across models.
+    norm_values = {}
+    for metric in metrics:
+        col_name = f"Mean_{metric}"
+        values = summary_df[col_name].values.astype(float)
+        if metric in ['RMSE', 'MAE']:
+            min_val, max_val = np.min(values), np.max(values)
+            if max_val == min_val:
+                norm_values[metric] = np.ones_like(values)
+            else:
+                norm_values[metric] = (values - min_val) / (max_val - min_val)
+        else:
+            # Already normalized metrics: NRMSE, Corr, R2.
+            norm_values[metric] = values
+    
+    # Number of axes in the radar plot.
+    N = len(metrics)
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    angles += angles[:1]  # Close the loop.
+    
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+    
+    # Plot each model's normalized aggregated metrics.
+    for i, (_, row) in enumerate(summary_df.iterrows()):
+        model = row['Model']
+        # Collect normalized values in the order of metrics.
+        values = [norm_values[m][i] for m in metrics]
+        values += values[:1]
+        color = model_colors.get(model, '#000000')
+        ax.plot(angles, values, color=color, linewidth=2, label=model)
+        ax.fill(angles, values, color=color, alpha=0.25)
+    
+    ax.set_thetagrids(np.degrees(angles[:-1]), metrics)
+    ax.set_ylim(0, 1)  # Force all values between 0 and 1.
+    ax.set_title("Aggregated Normalized Evaluation Metrics", fontsize=16)
+    ax.grid(True)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+    
+    # Save the plot if an output directory is provided.
+    if out_path:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        save_file = os.path.join(out_path, f"{filename_prefix}.svg")
+        plt.savefig(save_file, format='svg', bbox_inches='tight')
+    plt.show()
 

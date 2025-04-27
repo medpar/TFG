@@ -1,0 +1,6 @@
+Ficheros faltantes/con errores
+
+- A03_S41 - Bodytrack ✅ Ponia p en lugar de t
+- A04_S57 - MotionAGFormer Sin procesar
+- A10_S50 - MotionAGFormer Sin procesar
+- A11_S57 - Bodytrack ✅ Ponia T02 en lugar de T01
