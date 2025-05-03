@@ -711,6 +711,170 @@ def createActivityCorrelationComparisonTable(per_activity_summaries, activity_le
     
     return comparison_df_corr
 
+# PRUEBO ESTO PARA EL TFG A VER SI FUNCIONA
+def createActivityMAEComparisonTable(per_activity_summaries, activity_legends,
+                                     out_path=None,
+                                     filename_prefix="Overall_PerActivityMAE_Table"):
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+
+    model_colors = {
+        'MotionAGFormer': '#9B59B6',
+        'MotionBERT':       '#3A86FF',
+        'MMPose':           '#F4A261',
+        'BodyTrack':        '#52B788'
+    }
+
+    activities = list(per_activity_summaries.keys())
+    models = ['MotionAGFormer', 'MotionBERT', 'MMPose', 'BodyTrack']
+
+    comparison_data = []
+    for activity in activities:
+        legend = activity_legends[activity]
+        df = per_activity_summaries[activity]
+        row = {'ID': activity, 'Legend': legend}
+
+        mae_values = {}
+        for model in models:
+            mean_mae = df[df['Model']==model]['Mean_MAE'].values[0]
+            std_mae  = df[df['Model']==model]['Std_MAE'].values[0]
+            mae_values[model] = (mean_mae, std_mae)
+            row[model] = f"{mean_mae:.2f} ± {std_mae:.2f}"
+
+        # El mejor es el más bajo MAE
+        best = min(mae_values.items(), key=lambda x: x[1][0])[0]
+        row['BestModel'] = best
+        comparison_data.append(row)
+
+    comparison_df = pd.DataFrame(comparison_data)
+
+    # Texto de tabla
+    text = "Activity MAE Comparison Table\n" + "="*80 + "\n"
+    header = f"{'ID':<10}{'Legend':>20}" + "".join(f"{m:>20}" for m in models)
+    text += header + "\n" + "-"*80 + "\n"
+    for _, r in comparison_df.iterrows():
+        line = f"{r['ID']:<10}{r['Legend']:>20}"
+        for m in models:
+            v = r[m]
+            if r['BestModel']==m:
+                v = f"*{v}*"
+            line += f"{v:>20}"
+        text += line + "\n"
+    print(text)
+
+    # Visualización
+    fig, ax = plt.subplots(figsize=(15,8))
+    ax.axis('tight'); ax.axis('off')
+    table_data = [[r['ID'], r['Legend']] + [r[m] for m in models]
+                  for _,r in comparison_df.iterrows()]
+    tbl = ax.table(cellText=table_data,
+                   colLabels=['ID','Legend']+models,
+                   cellLoc='center', loc='center')
+    tbl.auto_set_font_size(False); tbl.set_fontsize(9); tbl.scale(1.2,1.5)
+
+    # Colorea y destaca
+    for i, r in comparison_df.iterrows():
+        best = r['BestModel']
+        idx = models.index(best)+2
+        cell = tbl[(i+1, idx)]
+        cell.set_facecolor(f"{model_colors[best]}66")
+        cell.set_text_props(weight='bold')
+
+    plt.title("Activity MAE Comparison Across Models", pad=20)
+    if out_path:
+        os.makedirs(out_path, exist_ok=True)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), bbox_inches='tight')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), bbox_inches='tight')
+        comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
+    plt.show()
+
+    return comparison_df
+
+
+def createActivityR2ComparisonTable(per_activity_summaries, activity_legends,
+                                    out_path=None,
+                                    filename_prefix="Overall_PerActivityR2_Table"):
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+
+    model_colors = {
+        'MotionAGFormer': '#9B59B6',
+        'MotionBERT':       '#3A86FF',
+        'MMPose':           '#F4A261',
+        'BodyTrack':        '#52B788'
+    }
+
+    activities = list(per_activity_summaries.keys())
+    models = ['MotionAGFormer', 'MotionBERT', 'MMPose', 'BodyTrack']
+
+    comparison_data = []
+    for activity in activities:
+        legend = activity_legends[activity]
+        df = per_activity_summaries[activity]
+        row = {'ID': activity, 'Legend': legend}
+
+        r2_values = {}
+        for model in models:
+            mean_r2 = df[df['Model']==model]['Mean_R2'].values[0]
+            std_r2  = df[df['Model']==model]['Std_R2'].values[0]
+            r2_values[model] = (mean_r2, std_r2)
+            row[model] = f"{mean_r2:.2f} ± {std_r2:.2f}"
+
+        # El mejor es el más alto R²
+        best = max(r2_values.items(), key=lambda x: x[1][0])[0]
+        row['BestModel'] = best
+        comparison_data.append(row)
+
+    comparison_df = pd.DataFrame(comparison_data)
+
+    # Texto de tabla
+    text = "Activity R² Comparison Table\n" + "="*80 + "\n"
+    header = f"{'ID':<10}{'Legend':>20}" + "".join(f"{m:>20}" for m in models)
+    text += header + "\n" + "-"*80 + "\n"
+    for _, r in comparison_df.iterrows():
+        line = f"{r['ID']:<10}{r['Legend']:>20}"
+        for m in models:
+            v = r[m]
+            if r['BestModel']==m:
+                v = f"*{v}*"
+            line += f"{v:>20}"
+        text += line + "\n"
+    print(text)
+
+    # Visualización
+    fig, ax = plt.subplots(figsize=(15,8))
+    ax.axis('tight'); ax.axis('off')
+    table_data = [[r['ID'], r['Legend']] + [r[m] for m in models]
+                  for _,r in comparison_df.iterrows()]
+    tbl = ax.table(cellText=table_data,
+                   colLabels=['ID','Legend']+models,
+                   cellLoc='center', loc='center')
+    tbl.auto_set_font_size(False); tbl.set_fontsize(9); tbl.scale(1.2,1.5)
+
+    # Colorea y destaca
+    for i, r in comparison_df.iterrows():
+        best = r['BestModel']
+        idx = models.index(best)+2
+        cell = tbl[(i+1, idx)]
+        cell.set_facecolor(f"{model_colors[best]}66")
+        cell.set_text_props(weight='bold')
+
+    plt.title("Activity R² Comparison Across Models", pad=20)
+    if out_path:
+        os.makedirs(out_path, exist_ok=True)
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.svg"), bbox_inches='tight')
+        plt.savefig(os.path.join(out_path, f"{filename_prefix}.pdf"), bbox_inches='tight')
+        comparison_df.to_csv(os.path.join(out_path, f"{filename_prefix}.csv"), index=False)
+    plt.show()
+
+    return comparison_df
+
+
+
 
 # Code for the radar plots
 def plotRadarAggregatedMetrics(summary_df, out_path=None, filename_prefix="RadarPlotOverlay"):
