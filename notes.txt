@@ -1,0 +1,11 @@
+# Legend:
+#   qsHIPS = lower back
+#   qsRUL  = right upper leg
+#   qsRLL  = right lower leg    <--
+#   qsLUL  = left upper leg
+#   qsLLL  = left lower leg     <-- we use this
+#   qsBACK = upper back
+#   qsRUA  = right upper arm
+#   qsRLA  = right lower arm
+#   qsLUA  = left upper arm
+#   qsLLA  = left lower arm
