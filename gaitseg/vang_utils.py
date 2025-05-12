@@ -15,8 +15,8 @@ sensors  = ['qsLLL', 'qsRLL']
 colors   = {'qsLLL': 'tab:blue', 'qsRLL': 'tab:orange'}
 fs       = 50                  # IMU sample-rate  [Hz]
 dt       = 1.0 / fs            # time step        [s]
-cutoff   = 6.0                 # LP-cut-off       [Hz]
-min_dist = 0.5                 # min event gap    [s]
+cutoff   = 1                 # LP-cut-off       [Hz]
+min_dist = 0.5                 # m1 event gap    [s]
 
 def butter_lowpass(cut, fs, order=4):
     b, a = butter(order, cut / (0.5*fs), btype='low', analog=False)
@@ -187,7 +187,7 @@ def process_file(file_path):
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
         # Plotear el primer cluster de pasos
-        # plot_first_seconds(t_w, ωf, peaks, troughs, seconds=2.5, title_suffix=f"{sensor} (orig)")
+        #plot_first_seconds(t_w, ωf, peaks, troughs, seconds=5, title_suffix=f"{sensor} (orig)")
 
 
 LEG         = 'L'          # 'R' or 'L'
@@ -213,7 +213,7 @@ def compute_velocity_and_events(raw_filepath):
 
     grp = df[df['sensor']==sensor].sort_values('timestamp').reset_index(drop=True)
     if len(grp) < 2:
-        print(f"  ❌ not enough data for sensor {sensor} (rows={len(grp)}), skipping")
+        print(f"Not enough data for sensor {sensor} (rows={len(grp)}), skipping")
         return None, None, None, None, None, None
 
     # --- same quaternion→ω pipeline as before ---
