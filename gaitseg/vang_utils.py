@@ -26,12 +26,12 @@ def lowpass_filter(x, cut, fs, order=4):
     b, a = butter_lowpass(cut, fs, order)
     return filtfilt(b, a, x)
 
-def detect_gait_events(ω, fs, cut=6.0, min_d=0.5):
-    ωf = lowpass_filter(ω, cut, fs)
-    μ, σ = ωf.mean(), ωf.std()
+def detect_gait_events(omega, fs, cut=6.0, min_d=0.5):
+    omega_f = lowpass_filter(omega, cut, fs)
+    mu, sigma = omega_f.mean(), omega_f.std()
     dist = int(min_d*fs)
-    p,_ = find_peaks( ωf, distance=dist, prominence=0.5*σ, height=μ+0.5*σ)
-    t,_ = find_peaks(-ωf, distance=dist, prominence=0.5*σ, height=-(μ-0.5*σ))
+    p,_ = find_peaks( omega_f, distance=dist, prominence=0.5*sigma, height=mu+0.5*sigma)
+    t,_ = find_peaks(-omega_f, distance=dist, prominence=0.5*sigma, height=-(mu-0.5*sigma))
 
     idx = np.sort(np.r_[p, t])
     typ = ['peak' if i in p else 'trough' for i in idx]
@@ -40,16 +40,16 @@ def detect_gait_events(ω, fs, cut=6.0, min_d=0.5):
     for i, ty in zip(idx, typ):
         if keep_typ and keep_typ[-1] == ty:       # duplicate type → keep stronger
             last = keep_idx[-1]
-            if ty == 'peak' and ωf[i] > ωf[last]:
+            if ty == 'peak' and omega_f[i] > omega_f[last]:
                 keep_idx[-1] = i
-            elif ty == 'trough' and ωf[i] < ωf[last]:
+            elif ty == 'trough' and omega_f[i] < omega_f[last]:
                 keep_idx[-1] = i
         else:
             keep_idx.append(i); keep_typ.append(ty)
 
     peaks   = [i for i,t in zip(keep_idx, keep_typ) if t=='peak']
     troughs = [i for i,t in zip(keep_idx, keep_typ) if t=='trough']
-    return ωf, peaks, troughs                    # NOTE: count = len(peaks)+len(troughs)
+    return omega_f, peaks, troughs                    # NOTE: count = len(peaks)+len(troughs)
 
 def quat_conjugate(q):
     qc = q.copy();  qc[...,1:] *= -1;  return qc
@@ -74,7 +74,7 @@ def plot_first_seconds(t, sig, peaks, troughs,
     sig_zoom = sig[mask]
     
     plt.figure(figsize=(8, 3))
-    plt.plot(t_zoom, sig_zoom, '-', label='ω')
+    plt.plot(t_zoom, sig_zoom, '-', label='omega')
     # plot peaks and troughs within that window
     for p in peaks:
         if t[p] <= t[0] + seconds:
@@ -85,16 +85,64 @@ def plot_first_seconds(t, sig, peaks, troughs,
     
     plt.xlim(t[0], t[0] + seconds)
     plt.xlabel('Time [s]')
-    plt.ylabel('ω [rad/s]')
+    plt.ylabel('omega [rad/s]')
     plt.title(f'First {seconds:.1f}s {title_suffix}')
     plt.legend(loc='upper right')
     plt.tight_layout()
     plt.show()
 
 # Example usage (inside your process_file, after your usual plots):
-# plot_first_seconds(t_w, ωf, peaks, troughs, seconds=6.0, title_suffix=f"{sensor} (orig)")
-# plot_first_seconds(t_w, ωcorr, peaks_c, troughs_c, seconds=6.0, title_suffix=f"{sensor} (cleaned)")
+# plot_first_seconds(t_w, omega_f, peaks, troughs, seconds=6.0, title_suffix=f"{sensor} (orig)")
+# plot_first_seconds(t_w, omega_corr, peaks_c, troughs_c, seconds=6.0, title_suffix=f"{sensor} (cleaned)")
 
+def _walking_segments(env_mask):
+    """Return a list of (start, end) indices where env_mask==False (walking)."""
+    segs, i, n = [], 0, len(env_mask)
+    while i < n:
+        if env_mask[i]:
+            i += 1
+            continue
+        s = i
+        while i < n and not env_mask[i]:
+            i += 1
+        segs.append((s, i))
+    if not segs:        # fallback: everything is one segment
+        segs = [(0, n)]
+    return segs
+
+
+def _segment_orientation(sig, s, e, thr):
+    """Return +1 if the segment has predominantly positive swings, else -1."""
+    # use only samples whose magnitude > thr
+    seg = sig[s:e]
+    strong = seg[np.abs(seg) > thr]
+    if len(strong) == 0:
+        strong = seg             # fallback to all samples
+    return 1 if np.median(strong) >= 0 else -1
+
+
+def correct_sign_by_segment(omega_f, fs, env_percentile=15, mag_frac=0.15):
+    """
+    Flip entire walking segments so that *all* segments share the
+    orientation of the very first one.
+    Returns the corrected signal, plus segment list for debugging.
+    """
+    # ── locate turning (flat) zones via envelope
+    env   = np.abs(hilbert(omega_f))
+    env_s = pd.Series(env).rolling(int(0.4*fs), center=True,
+                                   min_periods=1).mean().values
+    flat  = env_s < np.percentile(env_s, env_percentile)
+    segs  = _walking_segments(flat)
+
+    thr   = mag_frac * np.std(omega_f)
+    ref_sign = _segment_orientation(omega_f, *segs[0], thr)
+
+    omega_corr = omega_f.copy()
+    for s, e in segs[1:]:
+        sign = _segment_orientation(omega_corr, s, e, thr)
+        if sign != ref_sign:              # segment is reversed → flip
+            omega_corr[s:e] *= -1
+    return omega_corr, segs
 
 def process_file(file_path):
     df = pd.read_csv(file_path, header=0)
@@ -126,157 +174,135 @@ def process_file(file_path):
         axis = np.zeros_like(dq[:,1:])
         good = sinh > 1e-8
         axis[good] = dq[good,1:] / sinh[good,None]
-        ω3d  = axis * (ang/dt)[:,None]
+        omega_3d  = axis * (ang/dt)[:,None]
         t_w  = t[1:]
 
         # principal component
-        comp = np.argmax(np.std(ω3d, axis=0))
-        ω    = ω3d[:, comp]
+        comp = np.argmax(np.std(omega_3d, axis=0))
+        omega    = omega_3d[:, comp]
 
         # ----- event detection on original signal ---------------------------
-        ωf, peaks, troughs = detect_gait_events(ω, fs, cutoff, min_dist)
+        omega_f, peaks, troughs = detect_gait_events(omega, fs, cutoff, min_dist)
         print(f"  {sensor}: {len(peaks)} peaks, {len(troughs)} troughs")
 
         plt.figure(figsize=(8,3))
-        plt.plot(t_w, ωf, color=colors[sensor], label='filtered ω')
-        plt.plot(t_w[peaks],   ωf[peaks],   'xr', label='peaks')
-        plt.plot(t_w[troughs], ωf[troughs], 'xg', label='troughs')
+        plt.plot(t_w, omega_f, color=colors[sensor], label='filtered ω')
+        plt.plot(t_w[peaks],   omega_f[peaks],   'xr', label='peaks')
+        plt.plot(t_w[troughs], omega_f[troughs], 'xg', label='troughs')
         plt.title(f'{os.path.basename(file_path)} — {sensor} (original)')
-        plt.xlabel('Time [s]'); plt.ylabel('ω [rad/s]')
+        plt.xlabel('Time [s]'); plt.ylabel('omega [rad/s]')
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
         # =======  robust direction correction  ==============================
-        # 1) locate turning (low-energy) periods via envelope -----------------
-        env   = np.abs(hilbert(ωf))
-        env_s = pd.Series(env).rolling(int(0.4*fs), center=True, min_periods=1).mean().values
-        flat  = env_s < np.percentile(env_s, 15)
-        segs  = []
-        i = 0
-        while i < len(flat):
-            if not flat[i]:
-                s = i
-                while i < len(flat) and not flat[i]:
-                    i += 1
-                segs.append((s,i))
-            else:
-                i += 1
-        if not segs: segs = [(0,len(ωf))]
+        omega_corr, segs = correct_sign_by_segment(omega_f, fs)
+        omega_corr = -omega_corr
 
-        # 2) vote the dominant sign inside every walking segment -------------
-        ωcorr  = ωf.copy()
-        mag_thr = 0.15*np.std(ωf)
-        for s,e in segs:
-            pos = np.sum(ωf[s:e] >  mag_thr)
-            neg = np.sum(ωf[s:e] < -mag_thr)
-            if neg > pos:
-                ωcorr[s:e] *= -1
 
-        # 3) re-classify **all** original events by sign of ωcorr -------------
-        all_evt = sorted(peaks + troughs)
-        peaks_c   = [i for i in all_evt if ωcorr[i] > 0]
-        troughs_c = [i for i in all_evt if ωcorr[i] < 0]
+        # classify peaks/troughs on corrected signal
+        all_evt  = sorted(peaks + troughs)
+        peaks_c  = [p for p in all_evt if omega_corr[p] > 0]
+        troughs_c= [p for p in all_evt if omega_corr[p] < 0]
+
+
         print(f"  {sensor} after correction: {len(peaks_c)} peaks, {len(troughs_c)} troughs")
 
         # ----- plot corrected signal ----------------------------------------
         plt.figure(figsize=(8,3))
-        plt.plot(t_w, ωcorr, color=colors[sensor], label='corrected ω')
-        plt.plot(t_w[peaks_c],   ωcorr[peaks_c],   'xr', label='max')
-        plt.plot(t_w[troughs_c], ωcorr[troughs_c], 'xg', label='min')
+        plt.plot(t_w, omega_corr, color=colors[sensor], label='sign-corrected ω')
+        plt.plot(t_w[peaks_c],   omega_corr[peaks_c],   'xr', label='peak')
+        plt.plot(t_w[troughs_c], omega_corr[troughs_c], 'xg', label='trough')
         plt.title(f'{os.path.basename(file_path)} — {sensor} (sign-corrected)')
-        plt.xlabel('Time [s]'); plt.ylabel('ω [rad/s]')
+        plt.xlabel('Time [s]'); plt.ylabel('omega [rad/s]')
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
         # Plotear el primer cluster de pasos
-        #plot_first_seconds(t_w, ωf, peaks, troughs, seconds=5, title_suffix=f"{sensor} (orig)")
+        #plot_first_seconds(t_w, omega_f, peaks, troughs, seconds=5, title_suffix=f"{sensor} (orig)")
 
 
-LEG         = 'L'          # 'R' or 'L'
+LEG         = 'l'          
 JOINTS      = [            # the columns in your .mot to include as features
     #f'hip_flex_{LEG}',
     f'knee_angle_{LEG}',
     #f'ankle_angle_{LEG}'
 ]
+def clean_sensor_df(grp):
+    """Remove calibration rows (timestamp<=0) and consecutive identical quats."""
+    grp = grp[grp['timestamp'] > 0].reset_index(drop=True)
+    dup = (grp[['w','x','y','z']] == grp[['w','x','y','z']].shift()).all(axis=1)
+    return grp.loc[~dup].reset_index(drop=True)
+
+
 def compute_velocity_and_events(raw_filepath):
-    print(f"compute_velocity_and_events: loading {raw_filepath}")
-    df = pd.read_csv(raw_filepath, header=0)
+    print(f"compute_velocity_and_events: {raw_filepath}")
+    df = pd.read_csv(raw_filepath)
     df.rename(columns={df.columns[0]:'sensor'}, inplace=True)
     for c in ['w','x','y','z','timestamp']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
     df.dropna(subset=['w','x','y','z','timestamp'], inplace=True)
-    df = df[df['timestamp'] != 0.0]
 
-    avail = df['sensor'].unique().tolist()
-    print("  available sensors in file:", avail)
-    # pick based on LEG ('L'→first, 'R'→second)
     sensor = sensors[0] if LEG.upper()=='L' else sensors[1]
-    print("  selecting sensor:", sensor)
-
     grp = df[df['sensor']==sensor].sort_values('timestamp').reset_index(drop=True)
+    grp = clean_sensor_df(grp)
     if len(grp) < 2:
-        print(f"Not enough data for sensor {sensor} (rows={len(grp)}), skipping")
-        return None, None, None, None, None, None
+        print("   no data for", sensor);  return None, None, None, None, None, None
 
-    # --- same quaternion→ω pipeline as before ---
-    quats      = grp[['w','x','y','z']].values.copy()
-    ts         = grp['timestamp'].values
-    t0         = ts[0]
-    # continuity
-    dots = np.sum(quats[1:]*quats[:-1], axis=1)
-    quats[1:][dots<0] *= -1
+    # — quaternion → omega —
+    q = grp[['w','x','y','z']].values
+    dots = np.sum(q[1:]*q[:-1], axis=1)
+    q[1:][dots<0] *= -1
 
-    dq    = quat_multiply(quats[1:], quat_conjugate(quats[:-1]))
-    w0    = np.clip(dq[:,0], -1.0, 1.0)
-    ang   = 2*np.arccos(w0)
-    sh    = np.sqrt(1 - w0*w0)
-    axis  = np.zeros_like(dq[:,1:])
-    ok    = sh > 1e-8
-    axis[ok] = dq[ok,1:]/sh[ok,None]
-    ω3d   = axis*(ang/dt)[:,None]
-    t_w   = ts[1:] - t0
-    comp  = np.argmax(np.std(ω3d,axis=0))
-    ω     = ω3d[:,comp]
+    dq   = quat_multiply(q[1:], quat_conjugate(q[:-1]))
+    w0   = np.clip(dq[:,0], -1, 1)
+    ang  = 2*np.arccos(w0)
+    sh   = np.sqrt(1 - w0*w0)
+    axis = np.zeros_like(dq[:,1:])
+    ok   = sh > 1e-8
+    axis[ok] = dq[ok,1:] / sh[ok,None]
+    omega_3d  = axis*(ang/dt)[:,None]
+    comp = np.argmax(np.std(omega_3d, axis=0))
+    omega    = omega_3d[:, comp]
 
-    # detect events
-    ωf, peaks, troughs = detect_gait_events(ω, fs, cutoff, min_dist)
+    # fixed 50 Hz time base
+    t_w  = np.arange(len(omega)) * dt
 
-    # robust sign correction
-    env   = np.abs(hilbert(ωf))
-    env_s = pd.Series(env).rolling(int(0.4*fs),center=True,min_periods=1).mean().values
-    flat  = env_s < np.percentile(env_s,15)
-    segs  = []
-    i = 0
+    # original filter & peak/troughs
+    omega_f, peaks, troughs = detect_gait_events(omega, fs, cutoff, min_dist)
+
+    # ── define walking segments (flat = turning) ──────────────────────────
+    env   = np.abs(hilbert(omega_f))
+    env_s = pd.Series(env).rolling(int(0.4*fs), center=True,
+                                   min_periods=1).mean().values
+    flat  = env_s < np.percentile(env_s, 15)
+
+    segs, i = [], 0
     while i < len(flat):
-        if not flat[i]:
-            s = i
-            while i < len(flat) and not flat[i]:
-                i += 1
-            segs.append((s,i))
-        else:
+        if flat[i]:
             i += 1
+            continue
+        s = i
+        while i < len(flat) and not flat[i]:
+            i += 1
+        segs.append((s, i))          # walking segment [s, e)
     if not segs:
-        segs = [(0,len(ωf))]
-    ωcorr = ωf.copy()
-    mag_thr = 0.15*np.std(ωf)
-    for s,e in segs:
-        pos = np.sum(ωf[s:e] >  mag_thr)
-        neg = np.sum(ωf[s:e] < -mag_thr)
-        if neg > pos:
-            ωcorr[s:e] *= -1
+        segs = [(0, len(omega_f))]
 
-    return t_w, ωf, ωcorr, peaks, troughs, flat
+    omega_corr, segs = correct_sign_by_segment(omega_f, fs)
+    omega_corr = -omega_corr
 
-def compute_phase_labels(ωf, ωcorr, flat_mask):
+
+    return t_w, omega_f, omega_corr, peaks, troughs, flat
+
+
+def compute_phase_labels(omega_f, omega_corr, flat_mask):
     """
-    0 = stance (ωcorr<0),
-    1 = swing  (ωcorr>0),
+    0 = stance (omega_corr<0),
+    1 = swing  (omega_corr>0),
     2 = turn   (flat_mask==True)
     """
-    phase = np.zeros_like(ωcorr, dtype=int)
-    phase[ωcorr>0] = 1
+    phase = np.zeros_like(omega_corr, dtype=int)
+    phase[omega_corr>0] = 1
     phase[flat_mask] = 2
     return phase
-
-# At the top of vang_utils.py, add:
 
 def export_gait_dataset(raw_root, mot_root, out_root, joints):
     os.makedirs(out_root, exist_ok=True)
@@ -307,12 +333,12 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
                 print("   → MOT missing, skip")
                 continue
 
-            t_w, ωf, ωcorr, peaks, troughs, flat = compute_velocity_and_events(raw_path)
+            t_w, omega_f, omega_corr, peaks, troughs, flat = compute_velocity_and_events(raw_path)
             if t_w is None:
-                print("   → no ω data, skipping trial")
+                print("   → no omega data, skipping trial")
                 continue
 
-            phase = compute_phase_labels(ωf, ωcorr, flat)
+            phase = compute_phase_labels(omega_f, omega_corr, flat)
 
             # load joint-angles exactly as in your fileProcessing
             print("  Reading MOT and extracting joints:", joints)
