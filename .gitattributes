@@ -1,5 +1,3 @@
-# Para evitar subir los outputs de los jupyter notebooks
-# Se ejecuta: git config filter.strip-notebook-output.clean 'jupyter nbconvert --ClearOutputPreprocessor.enabled=True --to=notebook --stdin --stdout --log-level=ERROR'  
-
-# Y luego añadimos esto a gitattributes
-*.ipynb filter=strip-notebook-output
+*.ipynb filter=nbstripout
+*.zpln filter=nbstripout
+*.ipynb diff=ipynb
