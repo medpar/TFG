@@ -21,9 +21,8 @@ min_dist = 0.5                 # m1 event gap    [s]
 def butter_lowpass(cut, fs, order=4):
     nyq = 0.5 * fs
     normal_cutoff = cut / nyq
-    # Add check to prevent error if cutoff is too high relative to Nyquist frequency
     if normal_cutoff >= 1:
-        normal_cutoff = 0.99 # Cap at 0.99 to avoid error
+        normal_cutoff = 0.99 
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
     return b, a
 
@@ -31,33 +30,25 @@ def lowpass_filter(x, cut, fs, order=4):
     b, a = butter_lowpass(cut, fs, order)
     return filtfilt(b, a, x)
 
-def detect_gait_events(omega_signal_to_filter, fs_param, cut_param=6.0, min_d_param=0.5): # Renamed parameters
+def detect_gait_events(omega_signal_to_filter, fs_param, cut_param=6.0, min_d_param=0.5): 
     omega_f = lowpass_filter(omega_signal_to_filter, cut_param, fs_param)
-    # This function is the original detect_gait_events, finding generic peaks and troughs
-    # on the filtered signal. Peaks are positive, troughs are negative.
     mu, sigma = omega_f.mean(), omega_f.std()
     dist = int(min_d_param*fs_param)
     
-    # find_peaks looks for positive peaks. For troughs, invert signal and find positive peaks.
     p_indices,_ = find_peaks( omega_f, distance=dist, prominence=0.5*sigma, height=mu+0.5*sigma)
-    # For troughs, find peaks on the inverted signal. Height threshold should be positive for find_peaks.
-    # A common approach for height of troughs is to look for significant negative values.
-    # If mu is near 0, -(mu-0.5*sigma) implies height > 0.5*sigma on the inverted signal.
     t_indices,_ = find_peaks(-omega_f, distance=dist, prominence=0.5*sigma, height=max(0.01, -(mu-0.25*sigma)))
 
-
-    # Combine and clean up duplicate types (keep stronger)
     idx = np.sort(np.r_[p_indices, t_indices])
     typ = ['peak' if i in p_indices else 'trough' for i in idx]
 
     keep_idx, keep_typ = [], []
     if idx.size > 0: 
         for i, ty_val in zip(idx, typ):
-            if keep_typ and keep_typ[-1] == ty_val:       # duplicate type → keep stronger
+            if keep_typ and keep_typ[-1] == ty_val:       
                 last = keep_idx[-1]
                 if ty_val == 'peak' and omega_f[i] > omega_f[last]:
                     keep_idx[-1] = i
-                elif ty_val == 'trough' and omega_f[i] < omega_f[last]: # Comparing actual values; for troughs, smaller is "stronger" (more negative)
+                elif ty_val == 'trough' and omega_f[i] < omega_f[last]: 
                     keep_idx[-1] = i
             else:
                 keep_idx.append(i); keep_typ.append(ty_val)
@@ -66,29 +57,17 @@ def detect_gait_events(omega_signal_to_filter, fs_param, cut_param=6.0, min_d_pa
     final_troughs = [i for i,t_val in zip(keep_idx, keep_typ) if t_val=='trough']
     return omega_f, final_peaks, final_troughs
 
-# Helper function to find cleaned peaks (mid-swing) and troughs (contact) 
-# on a signal that ALREADY has positive swing and has been filtered.
-def get_midswing_and_contact_events(processed_signal_positive_swing, fs_param, min_dist_param): # Renamed parameter
-    # processed_signal_positive_swing is assumed to have positive swing peaks
+def get_midswing_and_contact_events(processed_signal_positive_swing, fs_param, min_dist_param): 
     mu, sigma = processed_signal_positive_swing.mean(), processed_signal_positive_swing.std()
     dist = int(min_dist_param * fs_param) 
 
-    # Mid-swing events are positive peaks in the processed_signal_positive_swing
-    mid_swing_indices, _ = find_peaks(processed_signal_positive_swing, distance=dist, prominence=0.25 * sigma, height=mu + 0.1 * sigma) # Adjusted thresholds
-    
-    # Contact events are negative troughs in the processed_signal_positive_swing
-    # Find peaks of the inverted signal to get troughs
-    # Height for find_peaks(-signal) should be positive. If mu is near zero, -(mu - X*sigma) works.
-    contact_indices, _ = find_peaks(-processed_signal_positive_swing, distance=dist, prominence=0.25 * sigma, height=max(0.01, -(mu - 0.1 * sigma))) # Adjusted thresholds
+    mid_swing_indices, _ = find_peaks(processed_signal_positive_swing, distance=dist, prominence=0.25 * sigma, height=mu + 0.1 * sigma) 
+    contact_indices, _ = find_peaks(-processed_signal_positive_swing, distance=dist, prominence=0.25 * sigma, height=max(0.01, -(mu - 0.1 * sigma))) 
     
     return sorted(list(mid_swing_indices)), sorted(list(contact_indices))
 
 
-def segment_gait_cycle_from_events(omega_signal_positive_swing, mid_swing_peaks, contact_troughs): # Renamed parameter
-    """
-    Detects Heel Strike (HS) and Toe Off (TO) from mid-swing peaks (positive peaks in omega_signal_positive_swing)
-    and contact troughs (negative peaks/troughs in omega_signal_positive_swing).
-    """
+def segment_gait_cycle_from_events(omega_signal_positive_swing, mid_swing_peaks, contact_troughs): 
     heel_strikes = []
     toe_offs = []
 
@@ -99,12 +78,10 @@ def segment_gait_cycle_from_events(omega_signal_positive_swing, mid_swing_peaks,
         return [], []
 
     for peak_idx in sorted_mid_swing_peaks:
-        # Heel Strike (HS): First contact_trough *after* the mid-swing peak.
         possible_hs_indices = sorted_contact_troughs[sorted_contact_troughs > peak_idx]
         if possible_hs_indices.size > 0:
             heel_strikes.append(possible_hs_indices[0])
 
-        # Toe Off (TO): Last contact_trough *before* the mid-swing peak.
         possible_to_indices = sorted_contact_troughs[sorted_contact_troughs < peak_idx]
         if possible_to_indices.size > 0:
             toe_offs.append(possible_to_indices[-1])
@@ -127,7 +104,7 @@ def quat_multiply(a, b):
         w1*z2 + x1*y2 - y1*x2 + z1*w2
     ])
 
-def plot_first_seconds(t, sig, peaks, troughs, # This function plots generic peaks and troughs
+def plot_first_seconds(t, sig, peaks, troughs, 
                        seconds=6.0,
                        title_suffix=''):
 
@@ -168,15 +145,15 @@ def _walking_segments(env_mask):
     """Return a list of (start, end) indices where env_mask==False (walking)."""
     segs, i, n = [], 0, len(env_mask)
     while i < n:
-        if env_mask[i]:
+        if env_mask[i]: 
             i += 1
             continue
-        s = i
-        while i < n and not env_mask[i]:
+        s = i 
+        while i < n and not env_mask[i]: 
             i += 1
-        segs.append((s, i))
-    if not segs:        # fallback: everything is one segment
-        segs = [(0, n)]
+        segs.append((s, i)) 
+    if not segs:        
+        segs = [(0, n)] 
     return segs
 
 
@@ -191,11 +168,6 @@ def _segment_orientation(sig, s, e, thr):
 
 
 def correct_sign_by_segment(omega_signal_to_correct, fs_param, env_percentile=15, mag_frac=0.15): 
-    """
-    Attempts to correct segment signs relative to the first segment.
-    The goal is that this function's output, after potential further global negation if needed,
-    will have positive swing for standard gait analysis.
-    """
     if omega_signal_to_correct.size == 0: return omega_signal_to_correct.copy(), [] 
     env   = np.abs(hilbert(omega_signal_to_correct))
     rolling_window = max(1, int(0.4*fs_param))
@@ -211,19 +183,13 @@ def correct_sign_by_segment(omega_signal_to_correct, fs_param, env_percentile=15
     omega_corrected_seg_by_seg = omega_signal_to_correct.copy()
     if not segs: return omega_corrected_seg_by_seg, []
 
-    # Determine orientation of the first segment
     first_seg_sign = _segment_orientation(omega_corrected_seg_by_seg, *segs[0], thr)
 
-    # Correct subsequent segments to match the first segment's orientation
-    # This step aims for consistency across segments, not necessarily "positive swing" yet.
-    for s, e in segs: # Iterate over all segments including the first
+    for s, e in segs: 
         current_segment_sign = _segment_orientation(omega_corrected_seg_by_seg, s, e, thr)
         if current_segment_sign != first_seg_sign:
             omega_corrected_seg_by_seg[s:e] *= -1
             
-    # Optional: A final global check if the dominant peaks are negative after segment-wise correction.
-    # This attempts to ensure the primary "action" (intended to be swing) is positive.
-    # This might be what needs to be adjusted or overridden by explicit negation later if convention is fixed.
     peaks_for_overall_check, _ = find_peaks(omega_corrected_seg_by_seg, prominence=np.std(omega_corrected_seg_by_seg)*0.25, distance=int(0.3*fs_param))
     if peaks_for_overall_check.size > 0 and np.median(omega_corrected_seg_by_seg[peaks_for_overall_check]) < 0:
         omega_corrected_seg_by_seg *= -1
@@ -271,7 +237,7 @@ def process_file(file_path):
         
         t_w  = t[1:] 
 
-        if omega_3d.shape[0] == 0 or t_w.size != omega_3d.shape[0]: # Ensure t_w aligns
+        if omega_3d.shape[0] == 0 or t_w.size != omega_3d.shape[0]: 
             print(f"  {sensor_id}: omega_3d is empty or mismatched with t_w, skipping"); continue
         comp = np.argmax(np.std(omega_3d, axis=0))
         omega_raw    = omega_3d[:, comp] 
@@ -279,32 +245,16 @@ def process_file(file_path):
         if omega_raw.size == 0:
             print(f"  {sensor_id}: omega_raw is empty after component selection, skipping"); continue
 
-        omega_f_initial, peaks_orig, troughs_orig = detect_gait_events(omega_raw, fs, cut_param=cutoff, min_d_param=min_dist)
-        print(f"  {sensor_id} (on omega_f_initial): {len(peaks_orig)} initial peaks, {len(troughs_orig)} initial troughs")
-
+        omega_f_initial, _, _ = detect_gait_events(omega_raw, fs, cut_param=cutoff, min_d_param=min_dist)
+        
         plt.figure(figsize=(8,3))
-        plt.plot(t_w, omega_f_initial, color=colors[sensor_id], label='filtered ω')
-        # Plotting original peaks/troughs with x markers
-        # ... (plotting code for original peaks/troughs remains the same) ...
-        peak_label_orig_plotted = False
-        for p_idx in peaks_orig:
-            if 0 <= p_idx < len(t_w):
-                plt.plot(t_w[p_idx], omega_f_initial[p_idx], 'xr', markersize=7, label='peak' if not peak_label_orig_plotted else "")
-                peak_label_orig_plotted = True
-        trough_label_orig_plotted = False
-        for tr_idx in troughs_orig:
-            if 0 <= tr_idx < len(t_w):
-                 plt.plot(t_w[tr_idx], omega_f_initial[tr_idx], 'xg', markersize=7, label='trough' if not trough_label_orig_plotted else "")
-                 trough_label_orig_plotted = True
+        plt.plot(t_w, omega_f_initial, color=colors[sensor_id], label='filtered ω (initial)')
         plt.title(f'{os.path.basename(file_path)} — {sensor_id} (initial filtered)')
         plt.xlabel('Time [s]'); plt.ylabel('omega [rad/s]')
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
-
         omega_after_seg_correction, _ = correct_sign_by_segment(omega_f_initial, fs)
-        
-        # APPLY USER'S CORRECTION: Invert the signal for standard positive swing convention
-        omega_event_signal_final = -omega_after_seg_correction
+        omega_event_signal_final = -omega_after_seg_correction 
         
         mid_swing_events, contact_events = get_midswing_and_contact_events(omega_event_signal_final, fs, min_dist)
         print(f"  {sensor_id} (on omega_event_signal_final): {len(mid_swing_events)} mid-swing, {len(contact_events)} contact events")
@@ -315,31 +265,40 @@ def process_file(file_path):
         print(f"  {sensor_id} (on omega_event_signal_final): Found {len(heel_strikes)} HS, {len(toe_offs)} TO")
 
         plt.figure(figsize=(8,3))
-        plt.plot(t_w, omega_event_signal_final, color=colors[sensor_id], label='Processed ω')
+        plt.plot(t_w, omega_event_signal_final, color=colors[sensor_id], label='Processed ω (positive swing)')
+        
+        event_marker_size = 5 
+
+        ms_label_plotted = False
+        if mid_swing_events:
+            for ms_idx in mid_swing_events:
+                if 0 <= ms_idx < len(t_w): 
+                    plt.plot(t_w[ms_idx], omega_event_signal_final[ms_idx], '.', color='red', markersize=event_marker_size, label='Mid-Swing' if not ms_label_plotted else "")
+                    ms_label_plotted = True
         
         hs_label_plotted = False
         if heel_strikes:
             for hs_idx in heel_strikes:
                 if 0 <= hs_idx < len(t_w): 
-                    plt.plot(t_w[hs_idx], omega_event_signal_final[hs_idx], 'x', color='magenta', markersize=8, label='Heel Strike' if not hs_label_plotted else "")
+                    plt.plot(t_w[hs_idx], omega_event_signal_final[hs_idx], 'o', color='magenta', markersize=event_marker_size, label='Heel Strike' if not hs_label_plotted else "")
                     hs_label_plotted = True
+        
         to_label_plotted = False
         if toe_offs:
             for to_idx in toe_offs:
                 if 0 <= to_idx < len(t_w): 
-                    plt.plot(t_w[to_idx], omega_event_signal_final[to_idx], 'x', color='cyan', markersize=8, label='Toe Off' if not to_label_plotted else "")
+                    plt.plot(t_w[to_idx], omega_event_signal_final[to_idx], 's', color='cyan', markersize=event_marker_size, label='Toe Off' if not to_label_plotted else "")
                     to_label_plotted = True
 
         plt.title(f'{os.path.basename(file_path)} — {sensor_id} (Processed ω & Events)')
         plt.xlabel('Time [s]'); plt.ylabel('omega [rad/s]')
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
+        #plot_first_walking_bout_phases(t_w, omega_event_signal_final, phase_labels, flat_mask, title_suffix=f" - {sensor_id} Processed")
 
 LEG         = 'l'          
-JOINTS      = [            # the columns in your .mot to include as features
-    #f'hip_flex_{LEG}',
+JOINTS      = [            
     f'knee_angle_{LEG}',
-    #f'ankle_angle_{LEG}'
 ]
 def clean_sensor_df(grp):
     """Remove calibration rows (timestamp<=0) and consecutive identical quats."""
@@ -391,7 +350,7 @@ def compute_velocity_and_events(raw_filepath):
     if omega_3d.shape[0] == 0:
         return tuple([None] * num_return_items)
         
-    t_w  = np.arange(omega_3d.shape[0]) * dt # Align t_w with omega_3d (raw omega)
+    t_w  = np.arange(omega_3d.shape[0]) * dt 
 
     comp = np.argmax(np.std(omega_3d, axis=0))
     omega_raw    = omega_3d[:, comp]
@@ -404,9 +363,7 @@ def compute_velocity_and_events(raw_filepath):
         return tuple([None] * num_return_items)
 
     omega_after_seg_correction, _ = correct_sign_by_segment(omega_f_initial, fs)
-    
-    # APPLY USER'S CORRECTION: Invert the signal for standard positive swing convention
-    omega_event_signal_final = -omega_after_seg_correction
+    omega_event_signal_final = -omega_after_seg_correction 
     
     mid_swing_events, contact_events = get_midswing_and_contact_events(
         omega_event_signal_final, fs, min_dist
@@ -416,7 +373,7 @@ def compute_velocity_and_events(raw_filepath):
         omega_event_signal_final, mid_swing_events, contact_events
     )
 
-    env   = np.abs(hilbert(omega_event_signal_final)) # Use final signal for envelope
+    env   = np.abs(hilbert(omega_event_signal_final)) 
     rolling_window = max(1, int(0.4*fs)) 
     env_s = pd.Series(env).rolling(rolling_window, center=True,
                                    min_periods=1).mean().values
@@ -426,8 +383,6 @@ def compute_velocity_and_events(raw_filepath):
     else:
         flat_mask  = env_s < np.percentile(env_s, flat_percentile)
     
-    # Return t_w, the initially filtered omega_f (for reference/debug), the final event signal,
-    # mid_swing, contact, HS, TO, and flat_mask
     return (t_w, omega_f_initial, omega_event_signal_final, 
             mid_swing_events, contact_events, 
             heel_strikes, toe_offs, flat_mask)
@@ -436,54 +391,66 @@ def compute_velocity_and_events(raw_filepath):
 def compute_phase_labels_from_events(num_samples, heel_strikes, toe_offs, flat_mask):
     """
     Assigns gait phase labels based on Heel Strike (HS) and Toe Off (TO) events.
-    Labels: 0 for Stance, 1 for Swing. Flat mask (turn) overrides.
-    Unclassified regions get -1.
+    Labels: 0 for Stance, 1 for Swing, 2 for Turn. Unclassified = -1.
+    Stance: From HS to the subsequent TO.
+    Swing: From TO to the subsequent HS.
+    Turn phase (from flat_mask) overrides Stance/Swing.
     """
-    phase = np.full(num_samples, -1, dtype=int) 
+    phase = np.full(num_samples, -1, dtype=int)
 
     events = []
-    for idx in heel_strikes: events.append({'idx': idx, 'type': 'HS'})
-    for idx in toe_offs: events.append({'idx': idx, 'type': 'TO'})
+    # Add valid HS events
+    for idx in sorted(list(set(heel_strikes))): # Unique, sorted HS
+        if 0 <= idx < num_samples:
+            events.append({'idx': idx, 'type': 'HS'})
+    # Add valid TO events
+    for idx in sorted(list(set(toe_offs))): # Unique, sorted TO
+        if 0 <= idx < num_samples:
+            events.append({'idx': idx, 'type': 'TO'})
     
-    events.sort(key=lambda x: (x['idx'], 0 if x['type'] == 'HS' else 1))
+    # Sort all HS/TO events chronologically
+    events.sort(key=lambda x: x['idx'])
 
-    if not events:
+    if not events: # No valid HS/TO events found
         if flat_mask is not None and len(flat_mask) == num_samples:
-            phase[flat_mask] = 2 
+            phase[flat_mask] = 2 # Apply turn phase if available
         return phase
         
-    for i in range(len(events)):
-        start_idx = events[i]['idx']
-        start_type = events[i]['type']
+    # Phase before the first event
+    first_event_idx = events[0]['idx']
+    first_event_type = events[0]['type']
+    if first_event_idx > 0:
+        if first_event_type == 'HS': phase[0:first_event_idx] = 1 # Swing
+        elif first_event_type == 'TO': phase[0:first_event_idx] = 0 # Stance
 
-        if not (0 <= start_idx < num_samples):
-            continue
-            
-        end_idx = num_samples 
-        if i + 1 < len(events):
-            end_idx = events[i+1]['idx']
-            if not (0 <= end_idx < num_samples): 
-                end_idx = num_samples 
+    # Phases between events
+    for i in range(len(events) - 1):
+        current_event_idx = events[i]['idx']
+        current_event_type = events[i]['type']
+        next_event_idx = events[i+1]['idx']
         
-        if start_idx >= end_idx:
-            continue
+        # Interval is [current_event_idx, next_event_idx)
+        if current_event_idx < next_event_idx: # Ensure interval is valid & non-empty
+            if current_event_type == 'HS': 
+                phase[current_event_idx:next_event_idx] = 0 # Stance
+            elif current_event_type == 'TO': 
+                phase[current_event_idx:next_event_idx] = 1 # Swing
+        # If current_event_idx == next_event_idx (e.g. HS and TO at same sample after filtering duplicates)
+        # this single point will be labeled by the current_event_type logic for the last event segment below,
+        # or this loop could assign it based on the first event at that point if there are two.
+        # Sorting events by index ensures deterministic processing.
 
-        if start_type == 'HS':
-            phase[start_idx:end_idx] = 0 
-        elif start_type == 'TO':
-            phase[start_idx:end_idx] = 1 
-            
-    if events and events[0]['idx'] > 0:
-        first_event_idx = events[0]['idx']
-        first_event_type = events[0]['type']
-        if first_event_idx < num_samples: # Ensure index is within bounds
-            if first_event_type == 'HS': 
-                phase[0:first_event_idx] = 1 
-            elif first_event_type == 'TO': 
-                phase[0:first_event_idx] = 0
-
+    # Phase after the last event (and including the last event point itself if it's the end of data)
+    last_event_idx = events[-1]['idx']
+    last_event_type = events[-1]['type']
+    # The interval is [last_event_idx, num_samples)
+    if last_event_idx < num_samples:
+        if last_event_type == 'HS': phase[last_event_idx:num_samples] = 0 # Stance
+        elif last_event_type == 'TO': phase[last_event_idx:num_samples] = 1 # Swing
+    
+    # Apply turn phase from flat_mask, which overrides any Stance/Swing labels
     if flat_mask is not None and len(flat_mask) == num_samples:
-        phase[flat_mask] = 2 
+        phase[flat_mask] = 2 # Turn
     
     return phase
 
@@ -512,7 +479,6 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
             if results[0] is None: 
                 continue
             
-            # t_w is results[0], heel_strikes is results[5], toe_offs is results[6], flat_mask is results[7]
             t_w, _, _, _, _, heel_strikes_for_label, toe_offs_for_label, flat_mask_for_label = results
             
             if t_w is None or heel_strikes_for_label is None or \
@@ -540,13 +506,10 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
                     continue
                 original_col_name = dfmot_cols_lower[j_lower] 
                 try:
-                    # Ensure fp.getJointAngleMotAsNP is robust or handle its potential errors
                     arr = fp.getJointAngleMotAsNP(dfmot, original_col_name) 
                     angle_data[j_lower] = arr 
                 except Exception as e_fp:
-                    # print(f"    ! Error in fp.getJointAngleMotAsNP for {original_col_name}: {e_fp}") # User's original print
                     continue
-
 
             if not angle_data:
                 continue
@@ -567,6 +530,78 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
             out_csv  = os.path.join(subj_out, base + '.csv')
             dfout.to_csv(out_csv, index=False)
 
+# New function to plot gait phases for the first walking bout
+def plot_first_walking_bout_phases(t_w, omega_signal, phase_labels, flat_mask, title_suffix=""):
+    """
+    Plots the angular velocity and overlaid gait phases for the first identified walking bout.
+    A walking bout is a segment not marked as 'turn' by the flat_mask.
+    """
+    walking_segs = _walking_segments(flat_mask)
+
+    if not walking_segs:
+        print(f"No walking segments (non-turn) found for {title_suffix}.")
+        return
+
+    s, e = walking_segs[0] # Get the start and end indices of the first walking segment
+    
+    print(f"Plotting first walking bout for {title_suffix}: segment indices [{s}, {e}), duration: {(e-s)*dt:.2f}s")
+
+
+    if e <= s: 
+        print(f"First walking segment is empty or invalid for {title_suffix}.")
+        return
+
+    t_bout = t_w[s:e]
+    omega_bout = omega_signal[s:e]
+    phase_bout = phase_labels[s:e]
+
+    if t_bout.size == 0: 
+        print(f"First walking segment data is empty after slicing for {title_suffix}.")
+        return
+
+    plt.figure(figsize=(12, 5)) 
+    plt.plot(t_bout, omega_bout, color='darkgrey', alpha=0.8, linewidth=1.5, label='Angular Velocity (ω)')
+
+    phase_colors = {0: 'tab:blue', 1: 'tab:orange', 2: 'tab:green', -1: 'lightgrey'}
+    phase_legend_labels = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
+    
+    legend_phases_added = set() # To ensure only one legend entry per phase type
+
+    for ph_val, color in phase_colors.items():
+        mask = (phase_bout == ph_val)
+        if not np.any(mask):
+            continue
+
+        diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int))
+        starts = np.where(diff_mask == 1)[0]
+        ends = np.where(diff_mask == -1)[0]
+
+        for seg_start_bout, seg_end_bout in zip(starts, ends): # Indices relative to _bout arrays
+            if seg_start_bout < seg_end_bout: 
+                label_to_use = None
+                if ph_val not in legend_phases_added:
+                    label_to_use = phase_legend_labels.get(ph_val)
+                    legend_phases_added.add(ph_val)
+                
+                # Ensure indices are valid for t_bout
+                # seg_end_bout is exclusive for the block of this phase within phase_bout
+                # axvspan's xmax is typically the end of the last sample in the span
+                if seg_start_bout < len(t_bout) and seg_end_bout > seg_start_bout:
+                    # Use seg_end_bout-1 for the last sample index in the current phase block
+                    idx_start_plot = seg_start_bout
+                    idx_end_plot = seg_end_bout -1 
+                    
+                    if idx_end_plot >= idx_start_plot and idx_end_plot < len(t_bout): 
+                         plt.axvspan(t_bout[idx_start_plot], t_bout[idx_end_plot], 
+                                    color=color, alpha=0.3, label=label_to_use)
+    
+    plt.title(f'Gait Phases - First Walking Bout {title_suffix}')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Angular Velocity (rad/s)')
+    plt.legend(loc='best')
+    plt.grid(True, linestyle=':', alpha=0.5)
+    plt.tight_layout()
+    plt.show()
 
 def plot_csv_angle_phase(csv_path, joint_col='knee_angle_l'):
     """
@@ -594,21 +629,25 @@ def plot_csv_angle_phase(csv_path, joint_col='knee_angle_l'):
 
     phase_colors = {0: 'tab:blue', 1: 'tab:orange', 2: 'tab:green', -1: 'lightgrey'} 
     labels       = {0: 'stance', 1: 'swing', 2: 'turn', -1: 'unclassified'} 
+    
+    scatter_point_size = 8 
 
-    plt.figure(figsize=(8,3))
-    plt.plot(t, angle, color='k', alpha=0.3, label='_nolegend_')
+    plt.figure(figsize=(10,4)) 
+    plt.plot(t, angle, color='k', alpha=0.2, linewidth=1, label='_nolegend_')
 
     for ph_val, col_color in phase_colors.items(): 
         mask = (phase == ph_val)
         if np.any(mask): 
             plt.scatter(t[mask], angle[mask],
-                        color=col_color, s=12, 
-                        label=f"{labels.get(ph_val,f'phase {ph_val}')} ({ph_val})")
+                        color=col_color, s=scatter_point_size, 
+                        label=f"{labels.get(ph_val,f'phase {ph_val}')} ({ph_val})",
+                        edgecolors='none') 
 
-    plt.title(os.path.basename(csv_path))
+    plt.title(f"Gait Phases for {joint_col} - {os.path.basename(csv_path)}")
     plt.xlabel('Time [s]')
     plt.ylabel(actual_joint_col_in_df) 
-    plt.legend(loc='upper right', fontsize=9)
+    plt.legend(loc='best', fontsize=9) 
+    plt.grid(True, linestyle=':', alpha=0.7) 
     plt.tight_layout()
     plt.show()
 
