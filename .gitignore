@@ -3,3 +3,4 @@ __pycache__
 **/*digest*.txt
 **/*DS_Store*
 **/*.pth
+**/*.ipynb
