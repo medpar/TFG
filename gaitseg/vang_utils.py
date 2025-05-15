@@ -15,8 +15,8 @@ sensors  = ['qsLLL', 'qsRLL']
 colors   = {'qsLLL': 'tab:blue', 'qsRLL': 'tab:orange'}
 fs       = 50                  # IMU sample-rate  [Hz]
 dt       = 1.0 / fs            # time step        [s]
-cutoff   = 1                 # LP-cut-off       [Hz]
-min_dist = 0.5                 # m1 event gap    [s]
+cutoff   = 0.5                # LP-cut-off       [Hz]
+min_dist = 0.3                # m1 event gap    [s]
 
 def butter_lowpass(cut, fs, order=4):
     nyq = 0.5 * fs
@@ -245,6 +245,7 @@ def process_file(file_path):
         if omega_raw.size == 0:
             print(f"  {sensor_id}: omega_raw is empty after component selection, skipping"); continue
 
+        # 1. Initial Filtered Signal Plot
         omega_f_initial, _, _ = detect_gait_events(omega_raw, fs, cut_param=cutoff, min_d_param=min_dist)
         
         plt.figure(figsize=(8,3))
@@ -253,21 +254,22 @@ def process_file(file_path):
         plt.xlabel('Time [s]'); plt.ylabel('omega [rad/s]')
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
+        # 2. Processed Signal with Events Plot
         omega_after_seg_correction, _ = correct_sign_by_segment(omega_f_initial, fs)
         omega_event_signal_final = -omega_after_seg_correction 
         
         mid_swing_events, contact_events = get_midswing_and_contact_events(omega_event_signal_final, fs, min_dist)
-        print(f"  {sensor_id} (on omega_event_signal_final): {len(mid_swing_events)} mid-swing, {len(contact_events)} contact events")
+        # print(f"  {sensor_id} (on omega_event_signal_final): {len(mid_swing_events)} mid-swing, {len(contact_events)} contact events") # User's original print
 
         heel_strikes, toe_offs = segment_gait_cycle_from_events(
             omega_event_signal_final, mid_swing_events, contact_events
         )
-        print(f"  {sensor_id} (on omega_event_signal_final): Found {len(heel_strikes)} HS, {len(toe_offs)} TO")
+        # print(f"  {sensor_id} (on omega_event_signal_final): Found {len(heel_strikes)} HS, {len(toe_offs)} TO") # User's original print
 
-        plt.figure(figsize=(8,3))
+        plt.figure(figsize=(12,4)) # Made wider for better event visibility
         plt.plot(t_w, omega_event_signal_final, color=colors[sensor_id], label='Processed ω (positive swing)')
         
-        event_marker_size = 5 
+        event_marker_size = 6 # Slightly larger markers for clarity
 
         ms_label_plotted = False
         if mid_swing_events:
@@ -294,7 +296,73 @@ def process_file(file_path):
         plt.xlabel('Time [s]'); plt.ylabel('omega [rad/s]')
         plt.legend(loc='upper right'); plt.tight_layout(); plt.show()
 
-        #plot_first_walking_bout_phases(t_w, omega_event_signal_final, phase_labels, flat_mask, title_suffix=f" - {sensor_id} Processed")
+        # 3. Compute and Plot Phases directly in process_file
+        # Calculate flat_mask based on omega_event_signal_final
+        env_pf   = np.abs(hilbert(omega_event_signal_final)) 
+        rolling_window_pf = max(1, int(0.4*fs)) 
+        env_s_pf = pd.Series(env_pf).rolling(rolling_window_pf, center=True,
+                                       min_periods=1).mean().values
+        flat_percentile_pf = 15 
+        if env_s_pf.size == 0: 
+            flat_mask_pf = np.zeros_like(omega_event_signal_final, dtype=bool)
+        else:
+            flat_mask_pf  = env_s_pf < np.percentile(env_s_pf, flat_percentile_pf)
+
+        phase_labels_pf = compute_phase_labels_from_events(
+            len(t_w), heel_strikes, toe_offs, flat_mask_pf
+        )
+        
+        # New plot for phases overlaid on the same omega_event_signal_final
+        plt.figure(figsize=(15, 5)) # Wider for phase spans
+        plt.plot(t_w, omega_event_signal_final, color=colors[sensor_id], alpha=0.6, linewidth=1.5, label=f'Ang. Vel. ({sensor_id})')
+
+        phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
+        phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
+        
+        legend_phases_added = set()
+        for ph_val, color_val in phase_colors_map.items():
+            mask = (phase_labels_pf == ph_val)
+            if not np.any(mask):
+                continue
+
+            diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int))
+            starts = np.where(diff_mask == 1)[0]
+            ends = np.where(diff_mask == -1)[0]
+
+            for seg_start, seg_end in zip(starts, ends):
+                if seg_start < seg_end and seg_start < len(t_w):
+                    actual_seg_end_idx = min(seg_end, len(t_w))
+                    if actual_seg_end_idx <= seg_start: continue
+                    
+                    label_to_use = None
+                    if ph_val not in legend_phases_added:
+                        label_to_use = phase_legend_labels_map.get(ph_val)
+                        legend_phases_added.add(ph_val)
+                    
+                    end_time_for_span = t_w[actual_seg_end_idx-1] if actual_seg_end_idx > seg_start else t_w[seg_start]
+                    plt.axvspan(t_w[seg_start], end_time_for_span + dt/2, 
+                                color=color_val, alpha=0.4, label=label_to_use)
+        
+        # Overlay the same events as in the previous plot for consistency
+        if mid_swing_events:
+            plt.plot(t_w[mid_swing_events], omega_event_signal_final[mid_swing_events], '.', color='red', markersize=event_marker_size, alpha=0.7, label='_nolegend_') # No legend, already in plot 2
+        if heel_strikes:
+            plt.plot(t_w[heel_strikes], omega_event_signal_final[heel_strikes], 'o', color='magenta', markersize=event_marker_size, alpha=0.7, label='_nolegend_')
+        if toe_offs:
+            plt.plot(t_w[toe_offs], omega_event_signal_final[toe_offs], 's', color='cyan', markersize=event_marker_size, alpha=0.7, label='_nolegend_')
+
+        plt.title(f'Computed Gait Phases - {os.path.basename(file_path)} ({sensor_id})')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Angular Velocity (rad/s)')
+        
+        handles_plot3, labels_plot3 = plt.gca().get_legend_handles_labels()
+        by_label_plot3 = dict(zip(labels_plot3, handles_plot3))
+        plt.legend(by_label_plot3.values(), by_label_plot3.keys(), loc='best')
+        
+        plt.grid(True, linestyle=':', alpha=0.5)
+        plt.tight_layout()
+        plt.show()
+
 
 LEG         = 'l'          
 JOINTS      = [            
@@ -311,17 +379,20 @@ def clean_sensor_df(grp):
 
 
 def compute_velocity_and_events(raw_filepath):
+    # This function should mirror the signal processing and event detection of process_file
+    # to ensure consistency for export_gait_dataset.
     df = pd.read_csv(raw_filepath)
     df.rename(columns={df.columns[0]:'sensor'}, inplace=True)
     for c_col in ['w','x','y','z','timestamp']: 
         df[c_col] = pd.to_numeric(df[c_col], errors='coerce')
     df.dropna(subset=['w','x','y','z','timestamp'], inplace=True)
 
+    # Important: For CSV export, we only care about the LEG specified globally.
     sensor_id_cv = sensors[0] if LEG.upper()=='L' else sensors[1] 
     grp = df[df['sensor']==sensor_id_cv].sort_values('timestamp').reset_index(drop=True)
     grp = clean_sensor_df(grp)
     
-    num_return_items = 8
+    num_return_items = 8 # t_w, omega_f_initial, omega_event_signal_final, mid_swing, contact, HS, TO, flat_mask
     if len(grp) < 2:
         return tuple([None] * num_return_items)
 
@@ -373,6 +444,7 @@ def compute_velocity_and_events(raw_filepath):
         omega_event_signal_final, mid_swing_events, contact_events
     )
 
+    # Flat mask calculation must be identical to process_file's for consistency
     env   = np.abs(hilbert(omega_event_signal_final)) 
     rolling_window = max(1, int(0.4*fs)) 
     env_s = pd.Series(env).rolling(rolling_window, center=True,
@@ -392,61 +464,75 @@ def compute_phase_labels_from_events(num_samples, heel_strikes, toe_offs, flat_m
     """
     Assigns gait phase labels based on Heel Strike (HS) and Toe Off (TO) events.
     Labels: 0 for Stance, 1 for Swing, 2 for Turn. Unclassified = -1.
-    Stance: From HS to the subsequent TO.
-    Swing: From TO to the subsequent HS.
+    Swing: From TO (inclusive) to the subsequent HS (exclusive).
+    Stance: From HS (inclusive) to the subsequent TO (exclusive).
     Turn phase (from flat_mask) overrides Stance/Swing.
     """
-    phase = np.full(num_samples, -1, dtype=int)
+    phase = np.full(num_samples, -1, dtype=int) # Initialize with -1 (unclassified)
 
-    events = []
-    # Add valid HS events
-    for idx in sorted(list(set(heel_strikes))): # Unique, sorted HS
-        if 0 <= idx < num_samples:
-            events.append({'idx': idx, 'type': 'HS'})
-    # Add valid TO events
-    for idx in sorted(list(set(toe_offs))): # Unique, sorted TO
-        if 0 <= idx < num_samples:
-            events.append({'idx': idx, 'type': 'TO'})
-    
-    # Sort all HS/TO events chronologically
-    events.sort(key=lambda x: x['idx'])
+    # Ensure events are sorted and unique
+    hs_events = sorted(list(set(idx for idx in heel_strikes if 0 <= idx < num_samples)))
+    to_events = sorted(list(set(idx for idx in toe_offs if 0 <= idx < num_samples)))
 
-    if not events: # No valid HS/TO events found
-        if flat_mask is not None and len(flat_mask) == num_samples:
-            phase[flat_mask] = 2 # Apply turn phase if available
-        return phase
+    # --- Assign Swing Phases (TO to next HS) ---
+    current_to_idx = 0
+    while current_to_idx < len(to_events):
+        to_event_time = to_events[current_to_idx]
         
-    # Phase before the first event
-    first_event_idx = events[0]['idx']
-    first_event_type = events[0]['type']
-    if first_event_idx > 0:
-        if first_event_type == 'HS': phase[0:first_event_idx] = 1 # Swing
-        elif first_event_type == 'TO': phase[0:first_event_idx] = 0 # Stance
-
-    # Phases between events
-    for i in range(len(events) - 1):
-        current_event_idx = events[i]['idx']
-        current_event_type = events[i]['type']
-        next_event_idx = events[i+1]['idx']
+        # Find the *next* HS event *after* this TO event
+        next_hs_event_time = num_samples # Default to end if no subsequent HS
+        found_next_hs = False
+        for hs_event in hs_events:
+            if hs_event > to_event_time:
+                next_hs_event_time = hs_event
+                found_next_hs = True
+                break
         
-        # Interval is [current_event_idx, next_event_idx)
-        if current_event_idx < next_event_idx: # Ensure interval is valid & non-empty
-            if current_event_type == 'HS': 
-                phase[current_event_idx:next_event_idx] = 0 # Stance
-            elif current_event_type == 'TO': 
-                phase[current_event_idx:next_event_idx] = 1 # Swing
-        # If current_event_idx == next_event_idx (e.g. HS and TO at same sample after filtering duplicates)
-        # this single point will be labeled by the current_event_type logic for the last event segment below,
-        # or this loop could assign it based on the first event at that point if there are two.
-        # Sorting events by index ensures deterministic processing.
+        # Interval for Swing: [TO, next_HS)
+        phase[to_event_time : next_hs_event_time] = 1 # Swing
+        
+        if not found_next_hs: # If no more HS after this TO, swing until end
+            break 
+        current_to_idx +=1
 
-    # Phase after the last event (and including the last event point itself if it's the end of data)
-    last_event_idx = events[-1]['idx']
-    last_event_type = events[-1]['type']
-    # The interval is [last_event_idx, num_samples)
-    if last_event_idx < num_samples:
-        if last_event_type == 'HS': phase[last_event_idx:num_samples] = 0 # Stance
-        elif last_event_type == 'TO': phase[last_event_idx:num_samples] = 1 # Swing
+
+    # --- Assign Stance Phases (HS to next TO) ---
+    current_hs_idx = 0
+    while current_hs_idx < len(hs_events):
+        hs_event_time = hs_events[current_hs_idx]
+
+        # Find the *next* TO event *after* this HS event
+        next_to_event_time = num_samples # Default to end if no subsequent TO
+        found_next_to = False
+        for to_event in to_events:
+            if to_event > hs_event_time:
+                next_to_event_time = to_event
+                found_next_to = True
+                break
+        
+        # Interval for Stance: [HS, next_TO)
+        # This will overwrite parts of swing if HS/TO are very close, which is fine.
+        # Stance takes precedence if an HS event marks the start of it.
+        phase[hs_event_time : next_to_event_time] = 0 # Stance
+
+        if not found_next_to: # If no more TO after this HS, stance until end
+            break
+        current_hs_idx += 1
+
+
+    # --- Handle edge case: period before the very first recorded event ---
+    # Combine all events and sort to find the absolute first one
+    all_sorted_events = sorted(hs_events + to_events)
+    if all_sorted_events:
+        first_ever_event_time = all_sorted_events[0]
+        if first_ever_event_time > 0:
+            # What was before? If first event is HS, assume swing before. If TO, assume stance.
+            # This requires checking the type of the first event in the combined list
+            first_event_is_hs = first_ever_event_time in hs_events
+            if first_event_is_hs:
+                phase[0:first_ever_event_time] = 1 # Swing
+            else: # First event must be TO
+                phase[0:first_ever_event_time] = 0 # Stance
     
     # Apply turn phase from flat_mask, which overrides any Stance/Swing labels
     if flat_mask is not None and len(flat_mask) == num_samples:
@@ -475,7 +561,7 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
             if not os.path.exists(mot_path):
                 continue
             
-            results = compute_velocity_and_events(raw_path)
+            results = compute_velocity_and_events(raw_path) # Ensures CSVs are based on consistent processing
             if results[0] is None: 
                 continue
             
@@ -489,7 +575,7 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
             if num_samples == 0:
                 continue
             
-            phase = compute_phase_labels_from_events(
+            phase = compute_phase_labels_from_events( # Use the revised labeling function
                 num_samples, heel_strikes_for_label, toe_offs_for_label, flat_mask_for_label
             )
 
@@ -530,78 +616,108 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
             out_csv  = os.path.join(subj_out, base + '.csv')
             dfout.to_csv(out_csv, index=False)
 
-# New function to plot gait phases for the first walking bout
-def plot_first_walking_bout_phases(t_w, omega_signal, phase_labels, flat_mask, title_suffix=""):
+# Function to plot gait phases for the first walking bout (can be called from notebook)
+def plot_first_walking_bout_phases(raw_file_path, leg_to_process=LEG):
     """
-    Plots the angular velocity and overlaid gait phases for the first identified walking bout.
-    A walking bout is a segment not marked as 'turn' by the flat_mask.
+    Processes a single .raw file, computes gait events and phases,
+    and plots the phases overlaid on the angular velocity signal for the FIRST walking bout.
     """
-    walking_segs = _walking_segments(flat_mask)
+    print(f"\n--- Visualizing First Walking Bout Phases for: {os.path.basename(raw_file_path)} ---")
 
+    results = compute_velocity_and_events(raw_file_path)
+    if results[0] is None:
+        print(f"Could not process {raw_file_path} to get velocity and events.")
+        return
+
+    t_w, _, omega_event_signal_final, _, _, heel_strikes, toe_offs, flat_mask = results
+    
+    if t_w is None or omega_event_signal_final is None or \
+       heel_strikes is None or toe_offs is None or flat_mask is None:
+        print(f"Incomplete event data for {raw_file_path}.")
+        return
+        
+    num_samples = len(t_w)
+    if num_samples == 0:
+        print(f"No samples in t_w for {raw_file_path}.")
+        return
+
+    phase_labels = compute_phase_labels_from_events(
+        num_samples, heel_strikes, toe_offs, flat_mask
+    )
+    
+    walking_segs = _walking_segments(flat_mask)
     if not walking_segs:
-        print(f"No walking segments (non-turn) found for {title_suffix}.")
+        print(f"No walking segments (non-turn) found for {os.path.basename(raw_file_path)}.")
         return
 
     s, e = walking_segs[0] # Get the start and end indices of the first walking segment
-    
-    print(f"Plotting first walking bout for {title_suffix}: segment indices [{s}, {e}), duration: {(e-s)*dt:.2f}s")
-
-
-    if e <= s: 
-        print(f"First walking segment is empty or invalid for {title_suffix}.")
+    if e <= s or s >= len(t_w) or e > len(t_w): 
+        print(f"First walking segment indices [{s},{e}) are invalid for {os.path.basename(raw_file_path)} (len: {len(t_w)}).")
         return
 
     t_bout = t_w[s:e]
-    omega_bout = omega_signal[s:e]
+    omega_bout = omega_event_signal_final[s:e]
     phase_bout = phase_labels[s:e]
 
     if t_bout.size == 0: 
-        print(f"First walking segment data is empty after slicing for {title_suffix}.")
+        print(f"First walking segment data is empty after slicing for {os.path.basename(raw_file_path)}.")
         return
 
+    sensor_id = sensors[0] if leg_to_process.upper() == 'L' else sensors[1]
+    signal_color = colors.get(sensor_id, 'tab:grey')
+
     plt.figure(figsize=(12, 5)) 
-    plt.plot(t_bout, omega_bout, color='darkgrey', alpha=0.8, linewidth=1.5, label='Angular Velocity (ω)')
+    plt.plot(t_bout, omega_bout, color=signal_color, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id})')
 
-    phase_colors = {0: 'tab:blue', 1: 'tab:orange', 2: 'tab:green', -1: 'lightgrey'}
-    phase_legend_labels = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
+    phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
+    phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
     
-    legend_phases_added = set() # To ensure only one legend entry per phase type
-
-    for ph_val, color in phase_colors.items():
+    legend_phases_added = set()
+    for ph_val, color_val in phase_colors_map.items():
         mask = (phase_bout == ph_val)
-        if not np.any(mask):
-            continue
-
+        if not np.any(mask): continue
         diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int))
-        starts = np.where(diff_mask == 1)[0]
-        ends = np.where(diff_mask == -1)[0]
+        starts_bout = np.where(diff_mask == 1)[0]
+        ends_bout = np.where(diff_mask == -1)[0]
 
-        for seg_start_bout, seg_end_bout in zip(starts, ends): # Indices relative to _bout arrays
-            if seg_start_bout < seg_end_bout: 
+        for seg_start_idx_bout, seg_end_idx_bout in zip(starts_bout, ends_bout):
+            if seg_start_idx_bout < seg_end_idx_bout and seg_start_idx_bout < len(t_bout):
+                actual_seg_end_plot_idx_bout = min(seg_end_idx_bout, len(t_bout))
+                if actual_seg_end_plot_idx_bout <= seg_start_idx_bout: continue
+                
                 label_to_use = None
                 if ph_val not in legend_phases_added:
-                    label_to_use = phase_legend_labels.get(ph_val)
+                    label_to_use = phase_legend_labels_map.get(ph_val)
                     legend_phases_added.add(ph_val)
                 
-                # Ensure indices are valid for t_bout
-                # seg_end_bout is exclusive for the block of this phase within phase_bout
-                # axvspan's xmax is typically the end of the last sample in the span
-                if seg_start_bout < len(t_bout) and seg_end_bout > seg_start_bout:
-                    # Use seg_end_bout-1 for the last sample index in the current phase block
-                    idx_start_plot = seg_start_bout
-                    idx_end_plot = seg_end_bout -1 
-                    
-                    if idx_end_plot >= idx_start_plot and idx_end_plot < len(t_bout): 
-                         plt.axvspan(t_bout[idx_start_plot], t_bout[idx_end_plot], 
-                                    color=color, alpha=0.3, label=label_to_use)
+                end_time_for_span_bout = t_bout[actual_seg_end_plot_idx_bout-1] if actual_seg_end_plot_idx_bout > seg_start_idx_bout else t_bout[seg_start_idx_bout]
+                plt.axvspan(t_bout[seg_start_idx_bout], end_time_for_span_bout + dt/2, 
+                            color=color_val, alpha=0.4, label=label_to_use)
     
-    plt.title(f'Gait Phases - First Walking Bout {title_suffix}')
+    # Overlay relevant HS/TO events within this bout
+    hs_in_bout = [hs - s for hs in heel_strikes if s <= hs < e]
+    to_in_bout = [to - s for to in toe_offs if s <= to < e]
+    
+    event_marker_size = 6
+    if hs_in_bout:
+        valid_hs_in_bout = [idx for idx in hs_in_bout if 0 <= idx < len(t_bout)]
+        if valid_hs_in_bout:
+             plt.plot(t_bout[valid_hs_in_bout], omega_bout[valid_hs_in_bout], 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike', linestyle='None')
+    if to_in_bout:
+        valid_to_in_bout = [idx for idx in to_in_bout if 0 <= idx < len(t_bout)]
+        if valid_to_in_bout:
+            plt.plot(t_bout[valid_to_in_bout], omega_bout[valid_to_in_bout], 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off', linestyle='None')
+
+    plt.title(f'Gait Phases - First Walking Bout - {os.path.basename(raw_file_path)} ({sensor_id})')
     plt.xlabel('Time (s)')
     plt.ylabel('Angular Velocity (rad/s)')
-    plt.legend(loc='best')
+    handles_plot_bout, labels_plot_bout = plt.gca().get_legend_handles_labels()
+    by_label_bout = dict(zip(labels_plot_bout, handles_plot_bout))
+    plt.legend(by_label_bout.values(), by_label_bout.keys(), loc='best')
     plt.grid(True, linestyle=':', alpha=0.5)
     plt.tight_layout()
     plt.show()
+
 
 def plot_csv_angle_phase(csv_path, joint_col='knee_angle_l'):
     """

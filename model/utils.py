@@ -34,7 +34,7 @@ def plot_training_history(history, fold_num=None):
     plot_filename = f"{title_prefix}training_history.png".replace(" ", "_").lower()
     plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
     print(f"Saved training history plot to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
-    plt.show()
+    #plt.show()
 
 
 def calculate_metrics(y_true_flat, y_pred_flat, average='weighted'):
@@ -65,7 +65,7 @@ def plot_confusion_matrix_custom(y_true_flat, y_pred_flat, class_names, title='C
     plot_filename = f"{title_prefix}confusion_matrix.png".replace(" ", "_").lower()
     plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
     print(f"Saved confusion matrix to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
-    plt.show()
+    #plt.show()
 
 def save_checkpoint(state, is_best, filename="checkpoint.pth", best_filename="best_model.pth", output_dir=config.OUTPUT_DIR):
     """Saves model checkpoint."""
@@ -143,7 +143,7 @@ def plot_predictions_vs_actual(timestamps, features, true_phases, predicted_phas
     plot_filename = f"prediction_vs_actual.png"
     plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
     print(f"Saved prediction vs actual plot to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
-    plt.show()
+    #plt.show()
 
 
 if __name__ == '__main__':
