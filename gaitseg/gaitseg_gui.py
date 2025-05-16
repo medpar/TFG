@@ -13,16 +13,16 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches 
 
 try:
-    import vang_utils as gal 
+    import gaitseg_utils as gal # Using your script name
 except ImportError:
-    print("Error: Could not import 'vang_utils.py'. Make sure it's in the correct path and named correctly.")
+    print("Error: Could not import 'gaitseg_utils.py'. Make sure it's in the correct path and named correctly.")
     sys.exit(1)
 
 GUI_BASE_DATA_DIR = gal.root_dir 
 GUI_OUTPUT_DIR = os.path.expanduser("~/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected") 
 SUBJECT_DIRS_PATTERN = "S*"
 TRIAL_FILE_PATTERN = "S*_A01_T*.raw" 
-MAGNET_TOLERANCE_SECONDS = 0.4 # MODIFIED: Increased tolerance for stronger magnet
+MAGNET_TOLERANCE_SECONDS = 0.1 # Increased tolerance for stronger magnet
 
 os.makedirs(GUI_OUTPUT_DIR, exist_ok=True)
 
@@ -36,14 +36,13 @@ class GaitCorrectionApp(QMainWindow):
         self.current_file_index = -1
         self.current_file_path = None
 
-        # Data from gal.compute_velocity_and_events for the current file
         self.current_t_w = None
-        self.current_omega_signal = None # This is the omega_event_signal_final
+        self.current_omega_signal = None 
         self.current_mid_swing = []
         self.current_hs = []
         self.current_to = []
         self.current_flat_mask = None
-        self.editable_phase_labels = None # This array holds the phases being edited
+        self.editable_phase_labels = None 
         self.data_is_dirty = False 
 
         self.defining_new_region_mode = False
@@ -51,24 +50,23 @@ class GaitCorrectionApp(QMainWindow):
         self.temp_vline_start = None
         self.temp_vline_end = None
         self.selected_segment_patch = None
-        self.selected_segment_indices = None # Tuple (start_idx, end_idx_exclusive)
+        self.selected_segment_indices = None 
 
-        # --- UI Setup (identical to previous, so omitted for brevity in this diff, but included in full code below) ---
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout(main_widget)
 
         left_panel = QVBoxLayout()
         self.file_list_widget = QListWidget()
-        self.file_list_widget.currentItemChanged.connect(self.on_file_selected_from_list_wrapper) # MODIFIED: wrapper for auto-save
+        self.file_list_widget.currentItemChanged.connect(self.on_file_selected_from_list_wrapper) 
         left_panel.addWidget(QLabel("Files to Process:"))
         left_panel.addWidget(self.file_list_widget)
 
         nav_buttons_layout = QHBoxLayout()
         self.prev_button = QPushButton("Previous File")
-        self.prev_button.clicked.connect(self.prev_file_auto_save) # MODIFIED: auto-save
+        self.prev_button.clicked.connect(self.prev_file_auto_save) 
         self.next_button = QPushButton("Next File")
-        self.next_button.clicked.connect(self.next_file_auto_save) # MODIFIED: auto-save
+        self.next_button.clicked.connect(self.next_file_auto_save) 
         nav_buttons_layout.addWidget(self.prev_button)
         nav_buttons_layout.addWidget(self.next_button)
         left_panel.addLayout(nav_buttons_layout)
@@ -111,12 +109,11 @@ class GaitCorrectionApp(QMainWindow):
         
         right_panel.addLayout(controls_layout)
 
-        self.save_button = QPushButton("Save Current Corrections") # MODIFIED: Changed button text
-        self.save_button.clicked.connect(self.save_current_file_corrections) # MODIFIED: New specific save function
+        self.save_button = QPushButton("Save Current Corrections") 
+        self.save_button.clicked.connect(self.save_current_file_corrections) 
         right_panel.addWidget(self.save_button)
 
         main_layout.addLayout(right_panel, 3)
-        # --- End of UI Setup ---
 
         self.populate_file_list()
         if self.raw_file_paths:
@@ -139,13 +136,13 @@ class GaitCorrectionApp(QMainWindow):
 
     def on_file_selected_from_list_wrapper(self, current_item, previous_item):
         if current_item:
-            if self.data_is_dirty and self.current_file_path: # Auto-save if dirty
+            if self.data_is_dirty and self.current_file_path: 
                 print(f"Auto-saving changes for {os.path.basename(self.current_file_path)} before switching.")
                 self.save_corrected_csv()
                 self.data_is_dirty = False 
             
             idx = self.file_list_widget.row(current_item)
-            if idx != self.current_file_index: # Load new file only if it's different
+            if idx != self.current_file_index: 
                 self.load_file_data(idx)
 
     def load_file_data(self, file_index):
@@ -156,7 +153,6 @@ class GaitCorrectionApp(QMainWindow):
         self.current_file_index = file_index
         self.current_file_path = self.raw_file_paths[file_index]
         
-        # Block signals while programmatically setting current item to avoid re-triggering
         self.file_list_widget.blockSignals(True)
         self.file_list_widget.setCurrentRow(file_index)
         self.file_list_widget.blockSignals(False)
@@ -165,7 +161,6 @@ class GaitCorrectionApp(QMainWindow):
         QApplication.processEvents()
 
         try:
-            # CRUCIAL: This must return the exact same omega_event_signal_final as seen in vang_utils.process_file
             results = gal.compute_velocity_and_events(self.current_file_path)
             if results[0] is None:
                 raise ValueError("compute_velocity_and_events returned None.")
@@ -208,7 +203,7 @@ class GaitCorrectionApp(QMainWindow):
             self.current_t_w = None 
             self.editable_phase_labels = None
             self.data_is_dirty = False
-            self.ax.clear() # Clear plot on error
+            self.ax.clear() 
             self.ax.text(0.5, 0.5, f"Error loading {os.path.basename(self.current_file_path)}", ha='center', va='center')
             self.canvas.draw()
             return
@@ -240,18 +235,19 @@ class GaitCorrectionApp(QMainWindow):
 
         sensor_id = gal.sensors[0] if gal.LEG.upper() == 'L' else gal.sensors[1]
         signal_color = gal.colors.get(sensor_id, 'tab:grey')
-        # Ensure current_omega_signal has same length as current_t_w for plotting
-        if len(self.current_omega_signal) != len(self.current_t_w):
-            print(f"Warning: Omega signal length ({len(self.current_omega_signal)}) "
-                  f"differs from time vector length ({len(self.current_t_w)}). Adjusting.")
-            min_len_plot = min(len(self.current_omega_signal), len(self.current_t_w))
-            plot_t = self.current_t_w[:min_len_plot]
-            plot_omega = self.current_omega_signal[:min_len_plot]
-            plot_phases = self.editable_phase_labels[:min_len_plot]
-        else:
-            plot_t = self.current_t_w
-            plot_omega = self.current_omega_signal
-            plot_phases = self.editable_phase_labels
+        
+        plot_t = self.current_t_w
+        plot_omega = self.current_omega_signal
+        plot_phases = self.editable_phase_labels
+        
+        # Ensure all plotted arrays are of the same primary length (from t_w)
+        min_len_data = len(plot_t)
+        if len(plot_omega) != min_len_data:
+            print(f"Warning: Omega signal length ({len(plot_omega)}) differs from time vector length ({min_len_data}). Truncating omega.")
+            plot_omega = plot_omega[:min_len_data]
+        if len(plot_phases) != min_len_data:
+            print(f"Warning: Phase labels length ({len(plot_phases)}) differs from time vector length ({min_len_data}). Truncating phases.")
+            plot_phases = plot_phases[:min_len_data]
 
 
         self.ax.plot(plot_t, plot_omega, color=signal_color, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id})')
@@ -282,7 +278,6 @@ class GaitCorrectionApp(QMainWindow):
                                     color=color_val, alpha=0.4, label=label_to_use)
         
         event_marker_size = 6
-        # Ensure event indices are valid for the current plot_t length
         if self.current_mid_swing:
             valid_ms = [idx for idx in self.current_mid_swing if 0 <= idx < len(plot_t)]
             if valid_ms: self.ax.plot(plot_t[valid_ms], plot_omega[valid_ms], '.', color='red', markersize=event_marker_size, alpha=0.7, label='Mid-Swing')
@@ -304,8 +299,7 @@ class GaitCorrectionApp(QMainWindow):
         self.canvas.draw()
 
     def _snap_to_event(self, click_time, click_idx_initial):
-        """Helper function for magnet effect. Returns snapped index."""
-        if self.current_t_w is None: return click_idx_initial # Should not happen if data loaded
+        if self.current_t_w is None: return click_idx_initial
 
         all_event_indices = sorted(list(set(self.current_hs + self.current_to)))
         snapped_idx = click_idx_initial
@@ -319,7 +313,7 @@ class GaitCorrectionApp(QMainWindow):
                 time_diff = self.current_t_w[event_idx] - click_time
                 abs_time_diff = abs(time_diff)
                 if abs_time_diff < min_time_diff_to_snap:
-                    if abs_time_diff < min_abs_diff : # Find the absolute closest event within tolerance
+                    if abs_time_diff < min_abs_diff : 
                         min_abs_diff = abs_time_diff
                         closest_event_idx = event_idx
         
@@ -357,16 +351,14 @@ class GaitCorrectionApp(QMainWindow):
                 start_final = min(self.new_region_start_idx, new_region_end_idx_snapped)
                 end_final = max(self.new_region_start_idx, new_region_end_idx_snapped)
                 
-                if start_final == end_final: # If clicks (snapped or not) are effectively the same point
+                if start_final == end_final: 
                     if start_final < len(self.current_t_w) -1 : 
-                        end_final = start_final # We will make it start_idx to start_idx+1 in assign_phase
+                        end_final = start_final 
                     elif start_final > 0:
                         start_final = end_final -1
-                    else: # Single point at index 0
+                    else: 
                         end_final = start_final 
-
-
-                self.selected_segment_indices = (start_final, end_final + 1 ) # end_final is inclusive, make end_idx exclusive
+                self.selected_segment_indices = (start_final, end_final + 1 ) 
                 self.status_label.setText(f"New region defined: [{self.current_t_w[start_final]:.2f}s - {self.current_t_w[end_final]:.2f}s]. Select a phase.")
         else: 
             boundary_events = sorted(list(set([0] + self.current_hs + self.current_to + [len(self.current_t_w)-1])))
@@ -412,9 +404,6 @@ class GaitCorrectionApp(QMainWindow):
 
         if self.selected_segment_indices:
             start_idx, end_idx_exclusive = self.selected_segment_indices 
-            # For "Define New Region", end_idx might be one past the last desired index
-            # For "Modify Existing", end_idx_exclusive is the start of the next segment or len(data)
-
             if 0 <= start_idx < end_idx_exclusive <= len(self.editable_phase_labels):
                 self.editable_phase_labels[start_idx:end_idx_exclusive] = phase_code
                 self.data_is_dirty = True
@@ -437,7 +426,6 @@ class GaitCorrectionApp(QMainWindow):
     def save_current_file_corrections(self):
         if self.current_file_path and self.editable_phase_labels is not None:
             self.save_corrected_csv()
-            self.data_is_dirty = False # Reset dirty flag after saving
         else:
             self.status_label.setText("No current file or data to save.")
 
@@ -451,41 +439,47 @@ class GaitCorrectionApp(QMainWindow):
         base_filename_no_ext = os.path.splitext(base_filename_raw)[0]
         
         subject_id_from_path = os.path.basename(os.path.dirname(self.current_file_path))
-        # Use gal.root_dir to construct mot_root_dir relative to the IMU data location
-        # Assuming jointangles_imus and jointangles_mot are peers in a 'benchmark' folder
-        benchmark_dir = os.path.dirname(gal.root_dir) # e.g., .../benchmark/jointangles
-        project_root_dir = os.path.dirname(benchmark_dir) # e.g., .../benchmark
-        mot_root_dir = os.path.join(project_root_dir, "jointangles_mot")
+        
+        benchmark_dir = os.path.dirname(gal.root_dir) 
+        project_root_dir = os.path.dirname(benchmark_dir) 
+        mot_root_dir = os.path.join(project_root_dir, "jointangles_mot") # Path to MOT files
         
         mot_path = os.path.join(mot_root_dir, subject_id_from_path, f"ik_{base_filename_no_ext}.mot")
 
-        # Ensure phase labels are aligned with t_w
         current_num_samples = len(self.current_t_w)
         aligned_phase_labels = self.editable_phase_labels[:current_num_samples]
         if len(self.editable_phase_labels) != current_num_samples:
             print(f"Warning: Phase label length ({len(self.editable_phase_labels)}) "
                   f"mismatched t_w length ({current_num_samples}). Aligning.")
 
-
-        output_data = {'time': self.current_t_w, 'phase': aligned_phase_labels}
+        output_data = {'time': self.current_t_w[:current_num_samples], 'phase': aligned_phase_labels}
         
         if os.path.exists(mot_path):
             try:
                 dfmot = pd.read_csv(mot_path, skiprows=6, sep='\t')
                 for joint_name_template in gal.JOINTS: 
                     joint_name_actual = joint_name_template 
-                    if joint_name_actual.lower() in (col.lower() for col in dfmot.columns):
-                        actual_col_name_in_dfmot = [col for col in dfmot.columns if col.lower() == joint_name_actual.lower()][0]
+                    # Find column in dfmot ignoring case
+                    actual_col_name_in_dfmot = None
+                    for col_dfmot in dfmot.columns:
+                        if col_dfmot.lower() == joint_name_actual.lower():
+                            actual_col_name_in_dfmot = col_dfmot
+                            break
+                    
+                    if actual_col_name_in_dfmot:
                         joint_angle_data = gal.fp.getJointAngleMotAsNP(dfmot, actual_col_name_in_dfmot)
                         
-                        min_len_joint = min(current_num_samples, len(joint_angle_data))
-                        output_data[joint_name_actual] = joint_angle_data[:min_len_joint]
+                        # Align lengths dynamically based on what's shortest
+                        min_len_for_this_joint = min(current_num_samples, len(joint_angle_data))
+                        output_data[joint_name_actual] = joint_angle_data[:min_len_for_this_joint]
                         
-                        # Ensure all primary arrays are also truncated to this min_len_joint if it's shorter
-                        if len(output_data['time']) > min_len_joint: output_data['time'] = output_data['time'][:min_len_joint]
-                        if len(output_data['phase']) > min_len_joint: output_data['phase'] = output_data['phase'][:min_len_joint]
-                        # Update current_num_samples if truncation occurred due to joints
-                        current_num_samples = min_len_joint 
+                        # If this joint angle array is shorter, all other arrays must be truncated too
+                        if min_len_for_this_joint < current_num_samples:
+                            print(f"Truncating all data to {min_len_for_this_joint} due to shorter joint angle: {joint_name_actual}")
+                            current_num_samples = min_len_for_this_joint
+                            # Re-truncate already added arrays
+                            output_data['time'] = output_data['time'][:current_num_samples]
+                            output_data['phase'] = output_data['phase'][:current_num_samples]
                     else:
                         print(f"Warning: Joint {joint_name_actual} not found in {mot_path}")
             except Exception as e:
@@ -493,12 +487,15 @@ class GaitCorrectionApp(QMainWindow):
         else:
             print(f"Warning: .mot file not found at {mot_path}. CSV will only contain time and phase.")
 
-        # Final check for consistent lengths before creating DataFrame
-        final_min_len = current_num_samples # Length is now consistent for time and phase
-        if any(len(arr) != final_min_len for arr in output_data.values()): # If joint angles caused further truncation
-            final_min_len = min(len(arr) for arr in output_data.values())
-            for key in output_data:
-                output_data[key] = output_data[key][:final_min_len]
+        # Ensure all columns in output_data have the final consistent length (current_num_samples)
+        for key in list(output_data.keys()): # Iterate over copy of keys if modifying dict
+            if len(output_data[key]) > current_num_samples:
+                output_data[key] = output_data[key][:current_num_samples]
+            elif len(output_data[key]) < current_num_samples:
+                # This case should ideally not happen if logic above is correct, but as a safeguard:
+                print(f"Error: Column {key} is unexpectedly shorter than final num_samples. Data might be inconsistent.")
+                # Decide how to handle: pad, error out, or skip this column
+                del output_data[key] # Example: remove inconsistent column
             
         output_df = pd.DataFrame(output_data)
 
@@ -516,7 +513,7 @@ class GaitCorrectionApp(QMainWindow):
             self.status_label.setText(f"Error saving CSV: {e}")
             print(f"Error saving CSV {output_filepath_csv}: {e}")
 
-    def next_file_auto_save(self): # MODIFIED
+    def next_file_auto_save(self): 
         if self.data_is_dirty and self.current_file_path:
             self.save_corrected_csv()
         if self.current_file_index < len(self.raw_file_paths) - 1:
@@ -524,7 +521,7 @@ class GaitCorrectionApp(QMainWindow):
         else:
             self.status_label.setText("Last file reached.")
 
-    def prev_file_auto_save(self): # MODIFIED
+    def prev_file_auto_save(self): 
         if self.data_is_dirty and self.current_file_path:
             self.save_corrected_csv()
         if self.current_file_index > 0:
@@ -543,7 +540,7 @@ class GaitCorrectionApp(QMainWindow):
                 event.accept()
             elif reply == QMessageBox.StandardButton.Discard:
                 event.accept()
-            else: # Cancel
+            else: 
                 event.ignore()
                 return
         else:
