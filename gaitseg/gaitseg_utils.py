@@ -1,10 +1,10 @@
-import os
 import sys
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, butter, filtfilt, hilbert
-
+from scipy.interpolate import interp1d # Added for interpolation tasks
 
 sys.path.append(os.path.dirname(os.getcwd()))
 import benchmark_utils.file_utils as fp # User's import
@@ -12,7 +12,7 @@ import benchmark_utils.file_utils as fp # User's import
 
 root_dir = '/Users/mario/Documents/TFG_VIDIMU/vidiMU/benchmark/jointangles/jointangles_imus'
 sensors  = ['qsLLL', 'qsRLL']
-colors   = {'qsLLL': 'tab:blue', 'qsRLL': 'tab:orange'}
+colors   = {'qsLLL': 'tab:blue', 'qsRLL': 'tab:orange', 'joint_angle_default': 'tab:red'} # Added default for joint angles
 fs       = 50                  # IMU sample-rate  [Hz]
 dt       = 1.0 / fs            # time step        [s]
 cutoff   = 0.5                # LP-cut-off       [Hz] # Your current value
@@ -201,32 +201,6 @@ def process_file(file_path):
     """
     print(f"\n--- Processing and Plotting for: {os.path.basename(file_path)} ---")
 
-    # Call compute_velocity_and_events to get all necessary processed data.
-    # Note: compute_velocity_and_events handles one sensor based on global LEG.
-    # If process_file needs to iterate through 'qsLLL' and 'qsRLL',
-    # it would need to call compute_velocity_and_events twice, setting global LEG each time,
-    # or compute_velocity_and_events would need to be refactored to take sensor_id/leg as an argument.
-    # For now, assuming process_file works with the current global LEG setting like compute_velocity_and_events.
-    
-    # Determine which sensor to process based on global LEG (similar to compute_velocity_and_events)
-    # This section needs to align with how compute_velocity_and_events selects its sensor if this
-    # function is intended to show plots for *both* sensors if available in the file.
-    # For simplicity and direct comparison with compute_velocity_and_events output,
-    # let's make process_file also focus on the single LEG.
-    
-    # If you want process_file to iterate and show plots for both sensors:
-    # for sensor_to_plot in sensors:
-    #     global LEG # Allow modification of global LEG for this iteration
-    #     original_leg_setting = LEG
-    #     LEG = 'l' if 'LLL' in sensor_to_plot else 'r'
-    #     print(f"  Processing for sensor: {sensor_to_plot} (LEG set to {LEG})")
-    #     # ... then call compute_velocity_and_events and plot ...
-    #     LEG = original_leg_setting # Restore global LEG
-    # else: # Original behavior: process based on current global LEG
-
-    # Simplified: process_file will now also respect the single global LEG
-    # The plotting will be for the sensor corresponding to this LEG.
-    
     results = compute_velocity_and_events(file_path) # This will use the global LEG
     if results[0] is None:
         print(f"  Could not process data for current LEG ({LEG.upper()}) in {os.path.basename(file_path)}")
@@ -256,10 +230,9 @@ def process_file(file_path):
         
         event_marker_size = 6 
 
-        # Check if events are valid indices for omega_event_signal_final
-        valid_ms = [idx for idx in mid_swing_events if 0 <= idx < len(omega_event_signal_final)]
-        valid_hs = [idx for idx in heel_strikes if 0 <= idx < len(omega_event_signal_final)]
-        valid_to = [idx for idx in toe_offs if 0 <= idx < len(omega_event_signal_final)]
+        valid_ms = [idx for idx in mid_swing_events if 0 <= idx < len(omega_event_signal_final) and 0 <= idx < len(t_w)]
+        valid_hs = [idx for idx in heel_strikes if 0 <= idx < len(omega_event_signal_final) and 0 <= idx < len(t_w)]
+        valid_to = [idx for idx in toe_offs if 0 <= idx < len(omega_event_signal_final) and 0 <= idx < len(t_w)]
 
         if valid_ms:
             plt.plot(t_w[valid_ms], omega_event_signal_final[valid_ms], '.', color='red', markersize=event_marker_size, label='Mid-Swing')
@@ -313,9 +286,9 @@ def process_file(file_path):
                     plt.axvspan(t_w[seg_start], end_time_for_span + dt/2, 
                                 color=color_val_phase, alpha=0.4, label=label_to_use) # Used color_val_phase
         
-        # Overlay the same events for consistency
         event_marker_size_phase_plot = 6
-        if valid_ms: # Use valid_* from plot 2
+        # Use valid_* from plot 2, ensuring indices are valid for t_w and omega_event_signal_final
+        if valid_ms:
             plt.plot(t_w[valid_ms], omega_event_signal_final[valid_ms], '.', color='red', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
         if valid_hs:
             plt.plot(t_w[valid_hs], omega_event_signal_final[valid_hs], 'o', color='magenta', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
@@ -385,14 +358,24 @@ def compute_velocity_and_events(raw_filepath):
     good = sinh_val > 1e-8 
     axis[good] = dq[good,1:] / sinh_val[good,None]
     
-    if dt == 0:
-        print(f"  {sensor_id_cv}: dt is zero");
-        return tuple([None] * num_return_items)
-    omega_3d  = axis * (ang/dt)[:,None]
+    current_dt = dt # Use global dt
+    if len(t_relative) > 1: # Try to calculate actual dt if possible
+        # Use median of diffs for more robust dt estimation from timestamps
+        actual_dts = np.diff(t_relative)
+        if len(actual_dts) > 0:
+            median_dt = np.median(actual_dts)
+            if median_dt > 1e-9: # Ensure it's a sensible, positive value
+                 current_dt = median_dt
+    if current_dt == 0:
+        print(f"  {sensor_id_cv}: dt is zero, falling back to global dt={dt}");
+        current_dt = dt # Fallback to global if still zero
+        if current_dt == 0: # Final fallback if global dt is also zero (should not happen)
+            print(f"  {sensor_id_cv}: Critical error - dt is zero even after fallbacks.");
+            return tuple([None] * num_return_items)
+
+    omega_3d  = axis * (ang/current_dt)[:,None]
     
-    # t_w corresponds to the timestamps for omega_3d, omega_raw, etc.
-    # It starts from the second timestamp of the 'grp' data, relative to grp's first timestamp.
-    t_w  = t_relative[1:] # This matches how t_w was defined in process_file
+    t_w  = t_relative[1:] 
 
     if omega_3d.shape[0] == 0 or t_w.size != omega_3d.shape[0]: 
         print(f"  {sensor_id_cv}: omega_3d is empty or mismatched with t_w ({t_w.size} vs {omega_3d.shape[0]})");
@@ -404,14 +387,13 @@ def compute_velocity_and_events(raw_filepath):
         print(f"  {sensor_id_cv}: omega_raw is empty after component selection");
         return tuple([None] * num_return_items)
     
-    # This is the sequence from process_file:
     omega_f_initial, _, _ = detect_gait_events(omega_raw, fs, cut_param=cutoff, min_d_param=min_dist) 
     if omega_f_initial.size == 0:
         print(f"  {sensor_id_cv}: omega_f_initial is empty after filtering");
         return tuple([None] * num_return_items)
 
     omega_after_seg_correction, _ = correct_sign_by_segment(omega_f_initial, fs)
-    omega_event_signal_final = -omega_after_seg_correction # This is the signal plotted in process_file's 2nd plot
+    omega_event_signal_final = -omega_after_seg_correction 
     
     mid_swing_events, contact_events = get_midswing_and_contact_events(
         omega_event_signal_final, fs, min_dist
@@ -437,13 +419,6 @@ def compute_velocity_and_events(raw_filepath):
 
 
 def compute_phase_labels_from_events(num_samples, heel_strikes, toe_offs, flat_mask):
-    """
-    Assigns gait phase labels based on Heel Strike (HS) and Toe Off (TO) events.
-    Labels: 0 for Stance, 1 for Swing, 2 for Turn. Unclassified = -1.
-    Swing: From TO (inclusive) to the subsequent HS (exclusive).
-    Stance: From HS (inclusive) to the subsequent TO (exclusive).
-    Turn phase (from flat_mask) overrides Stance/Swing.
-    """
     phase = np.full(num_samples, -1, dtype=int) 
 
     hs_events = sorted(list(set(idx for idx in heel_strikes if 0 <= idx < num_samples)))
@@ -569,10 +544,6 @@ def export_gait_dataset(raw_root, mot_root, out_root, joints):
             dfout.to_csv(out_csv, index=False)
 
 def plot_first_walking_bout_phases(raw_file_path, leg_to_process=LEG):
-    """
-    Processes a single .raw file, computes gait events and phases,
-    and plots the phases overlaid on the angular velocity signal for the FIRST walking bout.
-    """
     print(f"\n--- Visualizing First Walking Bout Phases for: {os.path.basename(raw_file_path)} ---")
 
     results = compute_velocity_and_events(raw_file_path)
@@ -650,11 +621,11 @@ def plot_first_walking_bout_phases(raw_file_path, leg_to_process=LEG):
     
     event_marker_size = 6
     if hs_in_bout:
-        valid_hs_in_bout = [idx for idx in hs_in_bout if 0 <= idx < len(t_bout)]
+        valid_hs_in_bout = [idx for idx in hs_in_bout if 0 <= idx < len(t_bout) and 0 <= idx < len(omega_bout)]
         if valid_hs_in_bout:
              plt.plot(t_bout[valid_hs_in_bout], omega_bout[valid_hs_in_bout], 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike', linestyle='None')
     if to_in_bout:
-        valid_to_in_bout = [idx for idx in to_in_bout if 0 <= idx < len(t_bout)]
+        valid_to_in_bout = [idx for idx in to_in_bout if 0 <= idx < len(t_bout) and 0 <= idx < len(omega_bout)]
         if valid_to_in_bout:
             plt.plot(t_bout[valid_to_in_bout], omega_bout[valid_to_in_bout], 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off', linestyle='None')
 
@@ -670,10 +641,6 @@ def plot_first_walking_bout_phases(raw_file_path, leg_to_process=LEG):
 
 
 def plot_csv_angle_phase(csv_path, joint_col='knee_angle_l'):
-    """
-    Read one CSV (with columns time, phase, <joint_col>) and plot
-    the joint angle over time, coloring each sample by its gait phase.
-    """
     try:
         df = pd.read_csv(csv_path)
     except Exception as e:
@@ -719,9 +686,6 @@ def plot_csv_angle_phase(csv_path, joint_col='knee_angle_l'):
 
 
 def plot_all_csvs_angle_phase(csv_root, joint_col='knee_angle_l'):
-    """
-    Walk csv_root/<subject>/*.csv and call plot_csv_angle_phase on each.
-    """
     for subj in sorted(os.listdir(csv_root)):
         subj_dir = os.path.join(csv_root, subj)
         if not os.path.isdir(subj_dir):
@@ -735,21 +699,19 @@ def plot_all_csvs_angle_phase(csv_root, joint_col='knee_angle_l'):
             csv_path = os.path.join(subj_dir, fn)
             plot_csv_angle_phase(csv_path, joint_col)
 
-            # ... (all existing code in gaitseg_utils.py remains the same) ...
-
 # --- Configuration for where corrected CSVs are stored by the GUI ---
-# This should match the GUI_OUTPUT_DIR in gaitseg_gui.py
 CORRECTED_CSV_OUTPUT_DIR = os.path.expanduser("~/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected") 
 
-def plot_corrected_gait_phases_from_csv(raw_file_path, leg_to_process=LEG):
+def plot_corrected_gait_phases_from_csv(raw_file_path, leg_to_process=LEG, joint_names_to_plot=None):
     """
-    Loads a corrected CSV file (produced by the GUI) and plots its phase labels
-    overlaid on the angular velocity signal derived from the original .raw file.
-    Also plots the HS, TO, and Mid-Swing events re-calculated from the .raw file.
+    Loads a corrected CSV (phases, optional joint angles) and plots this data.
+    Overlays re-calculated angular velocity and events from the original .raw file.
 
     Args:
         raw_file_path (str): Path to the original .raw IMU file.
-        leg_to_process (str, optional): 'l' or 'r'. Defaults to the global LEG variable.
+        leg_to_process (str, optional): 'l' or 'r'. Defaults to global LEG.
+        joint_names_to_plot (list of str, optional): List of joint angle column
+                                                     names from the CSV to plot.
     """
     base_filename_raw = os.path.basename(raw_file_path)
     base_filename_no_ext = os.path.splitext(base_filename_raw)[0]
@@ -758,156 +720,190 @@ def plot_corrected_gait_phases_from_csv(raw_file_path, leg_to_process=LEG):
     corrected_csv_filename = f"{base_filename_no_ext}_corrected.csv"
     corrected_csv_path = os.path.join(CORRECTED_CSV_OUTPUT_DIR, subject_id, corrected_csv_filename)
 
-    print(f"\n--- Visualizing Corrected Gait Phases for: {base_filename_raw} ---")
-    print(f"    Expecting corrected CSV at: {corrected_csv_path}")
+    print(f"\n--- Visualizing Corrected Data for: {base_filename_raw} ---")
+    print(f"    Corrected CSV: {corrected_csv_path}")
 
     if not os.path.exists(corrected_csv_path):
-        print(f"    Corrected CSV file not found. Skipping visualization for this file.")
+        print(f"    Corrected CSV file not found. Skipping visualization.")
         return
 
-    # 1. Load the corrected CSV to get the phase labels and time
+    # 1. Load corrected CSV data
     try:
         df_corrected = pd.read_csv(corrected_csv_path)
         if 'time' not in df_corrected.columns or 'phase' not in df_corrected.columns:
             print(f"    Corrected CSV {corrected_csv_path} is missing 'time' or 'phase' column. Skipping.")
             return
-        t_corrected = df_corrected['time'].values
-        phase_labels_corrected = df_corrected['phase'].values.astype(int)
-        num_samples_corrected = len(t_corrected)
+        
+        t_csv = df_corrected['time'].values
+        phases_csv = df_corrected['phase'].values.astype(int)
+        
+        joint_data_csv = {}
+        if joint_names_to_plot:
+            if not isinstance(joint_names_to_plot, list):
+                joint_names_to_plot = [joint_names_to_plot]
+            
+            df_corrected_cols_lower = {col.lower(): col for col in df_corrected.columns}
+            for joint_name_req in joint_names_to_plot:
+                actual_col_name = df_corrected_cols_lower.get(joint_name_req.lower())
+                if actual_col_name and actual_col_name in df_corrected:
+                    joint_data_csv[joint_name_req] = df_corrected[actual_col_name].values
+                    print(f"    Loaded joint '{joint_name_req}' (as '{actual_col_name}') from CSV.")
+                else:
+                    print(f"    Warning: Joint '{joint_name_req}' not found in corrected CSV. Will not be plotted.")
+        
+        if len(t_csv) == 0:
+            print(f"    Corrected CSV {corrected_csv_path} has no time data. Skipping.")
+            return
+            
     except Exception as e:
         print(f"    Error reading corrected CSV {corrected_csv_path}: {e}. Skipping.")
         return
 
-    # 2. Re-calculate omega signal and events from the original .raw file
-    #    This ensures the background omega signal and event markers are consistent
-    #    with what the GUI would have processed originally.
-    #    Note: compute_velocity_and_events uses the global LEG variable.
-    #    If you need to ensure it matches leg_to_process, you might need to
-    #    temporarily set the global LEG or modify compute_velocity_and_events.
-    #    For now, assuming global LEG is appropriate or managed externally.
-    
-    # Ensure global LEG is set for compute_velocity_and_events if leg_to_process is different
+    # 2. Re-calculate omega signal and events from original .raw file
     original_leg_setting = None
-    if hasattr(sys.modules[__name__], 'LEG') and sys.modules[__name__].LEG != leg_to_process:
-        original_leg_setting = sys.modules[__name__].LEG
-        sys.modules[__name__].LEG = leg_to_process
-        print(f"    Temporarily setting global LEG to '{leg_to_process}' for processing.")
+    current_module = sys.modules[__name__] # Get current module
+    if hasattr(current_module, 'LEG') and current_module.LEG != leg_to_process:
+        original_leg_setting = current_module.LEG
+        current_module.LEG = leg_to_process
+        print(f"    Temporarily set global LEG to '{leg_to_process}' for .raw processing.")
     
     results_from_raw = compute_velocity_and_events(raw_file_path)
 
-    if original_leg_setting is not None: # Restore global LEG if it was changed
-        sys.modules[__name__].LEG = original_leg_setting
+    if original_leg_setting is not None:
+        current_module.LEG = original_leg_setting
         print(f"    Restored global LEG to '{original_leg_setting}'.")
 
+    if results_from_raw is None or results_from_raw[0] is None:
+        print(f"    Could not re-process .raw file {raw_file_path}. Omega signal and events will be missing.")
+        t_imu_raw = None
+        omega_imu_raw = None
+        ms_indices_imu, hs_indices_imu, to_indices_imu = [], [], []
+    else:
+        t_imu_raw, _, omega_imu_raw, \
+        ms_indices_imu, _, hs_indices_imu, to_indices_imu, _ = results_from_raw
 
-    if results_from_raw[0] is None:
-        print(f"    Could not re-process .raw file {raw_file_path} to get omega signal and events. Skipping visualization.")
-        return
+    # 3. Prepare data for plotting
+    t_plot_master = t_csv  # Master time axis for the plot from corrected CSV
 
-    t_w_raw, _, omega_event_signal_final_raw, \
-    mid_swing_events_raw, _, heel_strikes_raw, toe_offs_raw, _ = results_from_raw # We don't need flat_mask here
+    # Interpolate omega_imu_raw onto t_plot_master for aligned plotting
+    omega_plot_aligned = np.full_like(t_plot_master, np.nan, dtype=float)
+    if t_imu_raw is not None and omega_imu_raw is not None and len(t_imu_raw) > 0:
+        if len(t_imu_raw) == 1: # Single data point from IMU processing
+            # Find nearest point in t_plot_master and assign, others NaN
+            if len(t_plot_master) > 0:
+                closest_idx_to_imu_time = np.argmin(np.abs(t_plot_master - t_imu_raw[0]))
+                omega_plot_aligned[closest_idx_to_imu_time] = omega_imu_raw[0]
+        else: # Multiple data points, suitable for interpolation
+            sort_indices_imu = np.argsort(t_imu_raw) # Ensure sorted for interp1d
+            t_imu_raw_sorted = t_imu_raw[sort_indices_imu]
+            omega_imu_raw_sorted = omega_imu_raw[sort_indices_imu]
+            
+            # Create interpolator
+            omega_interpolator = interp1d(
+                t_imu_raw_sorted, omega_imu_raw_sorted,
+                kind='linear',  # Linear interpolation
+                bounds_error=False, # Do not raise error for out-of-bounds
+                fill_value=np.nan  # Fill with NaN for out-of-bounds points
+            )
+            omega_plot_aligned = omega_interpolator(t_plot_master)
+    else:
+        print("    No valid IMU omega signal to interpolate.")
+
+    # Event times and values (from original IMU processing, not interpolated)
+    event_marker_size = 6
+    hs_event_times, hs_event_values = [], []
+    to_event_times, to_event_values = [], []
+    ms_event_times, ms_event_values = [], []
+
+    if t_imu_raw is not None and omega_imu_raw is not None:
+        valid_hs_indices = [i for i in hs_indices_imu if 0 <= i < len(t_imu_raw) and 0 <= i < len(omega_imu_raw)]
+        hs_event_times = t_imu_raw[valid_hs_indices]
+        hs_event_values = omega_imu_raw[valid_hs_indices]
+
+        valid_to_indices = [i for i in to_indices_imu if 0 <= i < len(t_imu_raw) and 0 <= i < len(omega_imu_raw)]
+        to_event_times = t_imu_raw[valid_to_indices]
+        to_event_values = omega_imu_raw[valid_to_indices]
+
+        valid_ms_indices = [i for i in ms_indices_imu if 0 <= i < len(t_imu_raw) and 0 <= i < len(omega_imu_raw)]
+        ms_event_times = t_imu_raw[valid_ms_indices]
+        ms_event_values = omega_imu_raw[valid_ms_indices]
+
+    # 4. Plotting
+    fig, ax1 = plt.subplots(figsize=(15, 7)) # Slightly taller for dual axis potentially
     
-    if t_w_raw is None or omega_event_signal_final_raw is None:
-        print(f"    Omega signal or time vector from .raw file processing is None. Skipping.")
-        return
-        
-    # Align lengths: The corrected CSV might be shorter if joint angles were shorter.
-    # We should plot based on the length of the corrected CSV's time vector.
-    # And ensure the omega_signal_raw and events are also aligned to this length.
-    if len(t_w_raw) > num_samples_corrected:
-        print(f"    Aligning raw signal data (len {len(t_w_raw)}) to corrected data length ({num_samples_corrected}).")
-        # Find where t_w_raw matches t_corrected approximately
-        # This assumes t_corrected is a subset of t_w_raw starting from a similar point.
-        # A more robust alignment might be needed if time vectors are significantly different.
-        # For now, assume t_corrected time values can be found in t_w_raw.
-        
-        # We need to ensure that the omega signal plotted corresponds to the time in t_corrected.
-        # If export_gait_dataset truncated output, t_corrected might be shorter than t_w_raw.
-        # The simplest way is to use the length of t_corrected as the limit.
-        
-        t_plot = t_corrected
-        omega_plot = omega_event_signal_final_raw[:num_samples_corrected]
-        phase_plot = phase_labels_corrected # Already the correct length
-
-        # Filter events to be within the plotted range (num_samples_corrected)
-        mid_swing_plot = [idx for idx in mid_swing_events_raw if 0 <= idx < num_samples_corrected]
-        hs_plot = [idx for idx in heel_strikes_raw if 0 <= idx < num_samples_corrected]
-        to_plot = [idx for idx in toe_offs_raw if 0 <= idx < num_samples_corrected]
-        
-    elif len(t_w_raw) < num_samples_corrected:
-        print(f"    Warning: Corrected data (len {num_samples_corrected}) is longer than re-processed raw data signal (len {len(t_w_raw)}). Plotting based on raw data length.")
-        t_plot = t_w_raw
-        omega_plot = omega_event_signal_final_raw
-        phase_plot = phase_labels_corrected[:len(t_w_raw)]
-        mid_swing_plot = mid_swing_events_raw
-        hs_plot = heel_strikes_raw
-        to_plot = toe_offs_raw
-    else: # Lengths match
-        t_plot = t_corrected # or t_w_raw, they should be equivalent
-        omega_plot = omega_event_signal_final_raw
-        phase_plot = phase_labels_corrected
-        mid_swing_plot = mid_swing_events_raw
-        hs_plot = heel_strikes_raw
-        to_plot = toe_offs_raw
-
-    # 3. Plotting
     sensor_id_for_plot = sensors[0] if leg_to_process.upper() == 'L' else sensors[1]
-    color_for_plot = colors.get(sensor_id_for_plot, 'tab:grey')
+    omega_color = colors.get(sensor_id_for_plot, 'tab:grey')
 
-    plt.figure(figsize=(15, 6)) # Consistent size with process_file's phase plot
-    plt.plot(t_plot, omega_plot, color=color_for_plot, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
+    # Plot interpolated omega signal on ax1
+    ax1.plot(t_plot_master, omega_plot_aligned, color=omega_color, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
+    ax1.set_xlabel('Time (s) - from Corrected CSV')
+    ax1.set_ylabel('Angular Velocity (rad/s)', color=omega_color)
+    ax1.tick_params(axis='y', labelcolor=omega_color)
 
+    # Plot phase regions from CSV data
     phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
     phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
-    
     legend_phases_added = set()
+
     for ph_val, color_val_phase in phase_colors_map.items():
-        mask = (phase_plot == ph_val)
-        if not np.any(mask):
-            continue
+        mask = (phases_csv == ph_val)
+        if not np.any(mask): continue
 
         diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int))
         starts = np.where(diff_mask == 1)[0]
         ends = np.where(diff_mask == -1)[0]
 
         for seg_start, seg_end in zip(starts, ends):
-            if seg_start < seg_end and seg_start < len(t_plot): # Ensure indices are within bounds of t_plot
-                actual_seg_end_idx = min(seg_end, len(t_plot))
+            if seg_start < seg_end and seg_start < len(t_plot_master):
+                actual_seg_end_idx = min(seg_end, len(t_plot_master))
                 if actual_seg_end_idx <= seg_start: continue
                 
-                label_to_use = None
+                label_to_use_phase = None
                 if ph_val not in legend_phases_added:
-                    label_to_use = phase_legend_labels_map.get(ph_val)
+                    label_to_use_phase = phase_legend_labels_map.get(ph_val)
                     legend_phases_added.add(ph_val)
                 
-                # Ensure indices for t_plot are valid for axvspan
-                time_start_span = t_plot[seg_start]
-                time_end_span = t_plot[actual_seg_end_idx-1] if actual_seg_end_idx > seg_start else t_plot[seg_start]
+                time_start_span = t_plot_master[seg_start]
+                # Use dt for consistent visual width of the last sample in span
+                time_end_span = t_plot_master[actual_seg_end_idx-1] + dt/2 
                 
-                plt.axvspan(time_start_span, time_end_span + dt/2, # Add small offset for visual coverage
-                            color=color_val_phase, alpha=0.4, label=label_to_use)
+                ax1.axvspan(time_start_span, time_end_span,
+                            color=color_val_phase, alpha=0.35, label=label_to_use_phase, zorder=-1)
     
-    event_marker_size_plot = 6
-    # Plot events using the filtered lists (mid_swing_plot, hs_plot, to_plot)
-    if mid_swing_plot:
-        valid_ms_plot = [idx for idx in mid_swing_plot if 0 <= idx < len(omega_plot)] # Check against omega_plot len
-        if valid_ms_plot: plt.plot(t_plot[valid_ms_plot], omega_plot[valid_ms_plot], '.', color='red', markersize=event_marker_size_plot, alpha=0.8, label='Mid-Swing')
-    if hs_plot:
-        valid_hs_plot = [idx for idx in hs_plot if 0 <= idx < len(omega_plot)]
-        if valid_hs_plot: plt.plot(t_plot[valid_hs_plot], omega_plot[valid_hs_plot], 'o', color='magenta', markersize=event_marker_size_plot, alpha=0.8, label='Heel Strike')
-    if to_plot:
-        valid_to_plot = [idx for idx in to_plot if 0 <= idx < len(omega_plot)]
-        if valid_to_plot: plt.plot(t_plot[valid_to_plot], omega_plot[valid_to_plot], 's', color='cyan', markersize=event_marker_size_plot, alpha=0.8, label='Toe Off')
+    # Plot event markers (from raw IMU processing)
+    if len(ms_event_times) > 0:
+        ax1.plot(ms_event_times, ms_event_values, '.', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing (raw)')
+    if len(hs_event_times) > 0:
+        ax1.plot(hs_event_times, hs_event_values, 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike (raw)')
+    if len(to_event_times) > 0:
+        ax1.plot(to_event_times, to_event_values, 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off (raw)')
 
-    plt.title(f'Corrected Gait Phases - {base_filename_raw} ({sensor_id_for_plot})')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Angular Velocity (rad/s)')
+    # Optional: Plot joint angles on ax2
+    ax2 = None
+    if joint_names_to_plot and joint_data_csv:
+        ax2 = ax1.twinx()
+        joint_angle_colors = plt.cm.get_cmap('cool', len(joint_data_csv)) # Get a colormap
+        color_idx = 0
+        for joint_name, joint_values in joint_data_csv.items():
+            joint_color = joint_angle_colors(color_idx)
+            ax2.plot(t_plot_master, joint_values, color=joint_color, linestyle='--', linewidth=1.2, label=f'{joint_name} (CSV)')
+            color_idx += 1
+        
+        ax2.set_ylabel('Joint Angles (degrees)', color=colors.get('joint_angle_default', 'tab:red')) # Generic label
+        ax2.tick_params(axis='y', labelcolor=colors.get('joint_angle_default', 'tab:red'))
+
+    # Finalize plot
+    plt.title(f'Corrected Data Visualisation - {base_filename_raw} ({sensor_id_for_plot})')
+    ax1.grid(True, linestyle=':', alpha=0.5)
     
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles)) 
-    plt.legend(by_label.values(), by_label.keys(), loc='best')
+    # Combine legends from ax1 and ax2 if ax2 exists
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    if ax2:
+        handles2, labels2 = ax2.get_legend_handles_labels()
+        # Place legend neatly, may need adjustment based on number of items
+        fig.legend(handles1 + handles2, labels1 + labels2, loc='upper right', bbox_to_anchor=(0.99, 0.95), fontsize='small')
+    else:
+        ax1.legend(loc='best', fontsize='small')
     
-    plt.grid(True, linestyle=':', alpha=0.5)
-    plt.tight_layout()
+    fig.tight_layout(rect=[0, 0, 0.85, 1] if ax2 else None) # Adjust layout if legend is outside
     plt.show()
-
