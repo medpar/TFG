@@ -341,32 +341,20 @@ LEG         = 'l'
 JOINTS      = [            
     f'knee_angle_{LEG}',
 ]
-# def clean_sensor_df(grp): # This function is no longer used as per request
-#     """Remove calibration rows (timestamp<=0) and consecutive identical quats."""
-#     grp = grp[grp['timestamp'] > 0].reset_index(drop=True)
-#     if grp.empty: return grp
-#     if all(col in grp.columns for col in ['w','x','y','z']):
-#         dup = (grp[['w','x','y','z']] == grp[['w','x','y','z']].shift()).all(axis=1)
-#         return grp.loc[~dup].reset_index(drop=True)
-#     return grp 
 
 
 def compute_velocity_and_events(raw_filepath):
-    # This function is NOW THE SINGLE SOURCE OF TRUTH for processed omega and events.
     # It should contain the exact logic previously in process_file's core.
     df = pd.read_csv(raw_filepath)
     df.rename(columns={df.columns[0]:'sensor'}, inplace=True)
     for c_col in ['w','x','y','z','timestamp']: 
         df[c_col] = pd.to_numeric(df[c_col], errors='coerce')
     df.dropna(subset=['w','x','y','z','timestamp'], inplace=True)
-    df = df[df['timestamp'] != 0.0] # This initial cleaning is from process_file
+    df = df[df['timestamp'] != 0.0] 
 
     # Process data for the globally defined LEG
     sensor_id_cv = sensors[0] if LEG.upper()=='L' else sensors[1] 
     grp = df[df['sensor']==sensor_id_cv].sort_values('timestamp').reset_index(drop=True)
-    
-    # clean_sensor_df IS REMOVED as requested
-    # grp = clean_sensor_df(grp) 
     
     num_return_items = 8 
     if len(grp) < 2:
