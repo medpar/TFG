@@ -181,6 +181,7 @@ def plot_first_seconds(t, sig, peaks, troughs,
     plt.ylabel('omega [rad/s]')
     plt.title(f'First {seconds:.1f}s {title_suffix}')
     plt.legend(loc='upper right')
+    plt.grid(True, linestyle=':', alpha=0.5)
     plt.tight_layout()
     plt.show(block=False) # Changed to block=False for multiple plots
 
@@ -416,40 +417,40 @@ def process_file(file_path, show_original=True, show_filtered=True, show_event_d
         if show_original:
             if t_w_leg is not None and omega_raw_leg is not None and omega_raw_leg.size > 0:
                 plt.figure(figsize=(12, 3))
-                plt.plot(t_w_leg, omega_raw_leg, color=color_for_plot_leg, label='Raw ω (unfiltered)')
-                plt.title(f"{common_title_prefix} (1. Raw Signal)")
+                plt.plot(t_w_leg, omega_raw_leg, color=color_for_plot_leg, label='Raw ω')
+                plt.title(f"{common_title_prefix} (Raw Signal)")
                 plt.xlabel('Time [s]'); plt.ylabel('Omega [rad/s]')
-                plt.legend(); plt.tight_layout(); plt.grid(True); plt.show(block=False)
+                plt.legend(); plt.tight_layout(); plt.grid(True, linestyle=':', alpha=0.5); plt.show(block=False)
             else:
                 print(f"    Skipping raw signal plot for {sensor_name_global} (no data).")
 
         if show_filtered:
             if t_w_cv is not None and omega_f_initial_cv is not None and omega_f_initial_cv.size > 0:
                 plt.figure(figsize=(12, 3))
-                plt.plot(t_w_cv, omega_f_initial_cv, color=color_for_plot_leg, label='Filtered ω (initial filter)')
-                plt.title(f"{common_title_prefix} (2. Filtered Signal)")
+                plt.plot(t_w_cv, omega_f_initial_cv, color=color_for_plot_leg, label='Filtered ω')
+                plt.title(f"{common_title_prefix} (Filtered Signal)")
                 plt.xlabel('Time [s]'); plt.ylabel('Omega [rad/s]')
-                plt.legend(); plt.tight_layout(); plt.grid(True); plt.show(block=False)
+                plt.legend(); plt.tight_layout(); plt.grid(True, linestyle=':', alpha=0.5); plt.show(block=False)
             else:
                 print(f"    Skipping filtered signal plot for {sensor_name_global} (no data).")
 
         if show_event_detection:
             if t_w_cv is not None and omega_event_signal_final_cv is not None and omega_event_signal_final_cv.size > 0:
                 plt.figure(figsize=(12, 4))
-                plt.plot(t_w_cv, omega_event_signal_final_cv, color=color_for_plot_leg, label='Processed ω (sign-corrected, event detection input)')
+                plt.plot(t_w_cv, omega_event_signal_final_cv, color=color_for_plot_leg, label='Processed ω')
                 event_marker_size = 6
                 
                 valid_ms_cv = [idx for idx in mid_swing_cv if 0 <= idx < len(omega_event_signal_final_cv) and 0 <= idx < len(t_w_cv)]
                 valid_hs_cv = [idx for idx in heel_strikes_cv if 0 <= idx < len(omega_event_signal_final_cv) and 0 <= idx < len(t_w_cv)]
                 valid_to_cv = [idx for idx in toe_offs_cv if 0 <= idx < len(omega_event_signal_final_cv) and 0 <= idx < len(t_w_cv)]
 
-                if valid_ms_cv: plt.plot(t_w_cv[valid_ms_cv], omega_event_signal_final_cv[valid_ms_cv], '.', color='red', markersize=event_marker_size, label='Mid-Swing')
+                if valid_ms_cv: plt.plot(t_w_cv[valid_ms_cv], omega_event_signal_final_cv[valid_ms_cv], 'o', color='red', markersize=event_marker_size, label='Mid-Swing')
                 if valid_hs_cv: plt.plot(t_w_cv[valid_hs_cv], omega_event_signal_final_cv[valid_hs_cv], 'o', color='magenta', markersize=event_marker_size, label='Heel Strike')
-                if valid_to_cv: plt.plot(t_w_cv[valid_to_cv], omega_event_signal_final_cv[valid_to_cv], 's', color='cyan', markersize=event_marker_size, label='Toe Off')
+                if valid_to_cv: plt.plot(t_w_cv[valid_to_cv], omega_event_signal_final_cv[valid_to_cv], 'o', color='cyan', markersize=event_marker_size, label='Toe Off')
                 
-                plt.title(f"{common_title_prefix} (3. Sign-Corrected & Event Detection)")
+                plt.title(f"{common_title_prefix} (Sign-Corrected & Event Detection)")
                 plt.xlabel('Time [s]'); plt.ylabel('Omega [rad/s]')
-                plt.legend(); plt.tight_layout(); plt.grid(True); plt.show(block=False)
+                plt.legend(); plt.tight_layout(); plt.grid(True, linestyle=':', alpha=0.5); plt.show(block=False)
             else:
                 print(f"    Skipping event detection plot for {sensor_name_global} (no data).")
         
@@ -488,19 +489,19 @@ def process_file(file_path, show_original=True, show_filtered=True, show_event_d
                 valid_ms_cv = [idx for idx in mid_swing_cv if 0 <= idx < len(omega_event_signal_final_cv) and 0 <= idx < len(t_w_cv)]
                 valid_hs_cv = [idx for idx in heel_strikes_cv if 0 <= idx < len(omega_event_signal_final_cv) and 0 <= idx < len(t_w_cv)]
                 valid_to_cv = [idx for idx in toe_offs_cv if 0 <= idx < len(omega_event_signal_final_cv) and 0 <= idx < len(t_w_cv)]
-                if valid_ms_cv: plt.plot(t_w_cv[valid_ms_cv], omega_event_signal_final_cv[valid_ms_cv], '.', color='red', markersize=event_marker_size_phase, label='Mid-Swing' if 'Mid-Swing' not in legend_phases_added else "_nolegend_")
+                if valid_ms_cv: plt.plot(t_w_cv[valid_ms_cv], omega_event_signal_final_cv[valid_ms_cv], 'o', color='red', markersize=event_marker_size_phase, label='Mid-Swing' if 'Mid-Swing' not in legend_phases_added else "_nolegend_")
                 if valid_hs_cv: plt.plot(t_w_cv[valid_hs_cv], omega_event_signal_final_cv[valid_hs_cv], 'o', color='magenta', markersize=event_marker_size_phase, label='Heel Strike' if 'Heel Strike' not in legend_phases_added else "_nolegend_")
-                if valid_to_cv: plt.plot(t_w_cv[valid_to_cv], omega_event_signal_final_cv[valid_to_cv], 's', color='cyan', markersize=event_marker_size_phase, label='Toe Off' if 'Toe Off' not in legend_phases_added else "_nolegend_")
+                if valid_to_cv: plt.plot(t_w_cv[valid_to_cv], omega_event_signal_final_cv[valid_to_cv], 'o', color='cyan', markersize=event_marker_size_phase, label='Toe Off' if 'Toe Off' not in legend_phases_added else "_nolegend_")
 
 
-                plt.title(f"{common_title_prefix} (4. Computed Gait Phases)")
+                plt.title(f"{common_title_prefix} (Computed Gait Phases)")
                 plt.xlabel('Time [s]'); plt.ylabel('Omega [rad/s]')
                 
                 handles_leg, labels_leg = plt.gca().get_legend_handles_labels()
                 by_label_leg = dict(zip(labels_leg, handles_leg))
                 plt.legend(by_label_leg.values(), by_label_leg.keys(), loc='best', fontsize='small')
 
-                plt.grid(True); plt.tight_layout(); plt.show(block=False)
+                plt.grid(True, linestyle=':', alpha=0.5); plt.tight_layout(); plt.show(block=False)
             else:
                  print(f"    Skipping phase plot for {sensor_name_global} (incomplete data).")
 
@@ -887,7 +888,7 @@ def plot_csv_angle_phase(csv_path, joint_col='knee_angle_l'):
     plt.xlabel('Time [s]')
     plt.ylabel(actual_joint_col_in_df) 
     plt.legend(loc='best', fontsize=9) 
-    plt.grid(True, linestyle=':', alpha=0.7) 
+    plt.grid(True, linestyle=':', alpha=0.5) 
     plt.tight_layout()
     plt.show(block=False)
 
@@ -990,8 +991,9 @@ def plot_corrected_gait_phases_from_csv(raw_file_path, leg_to_process=LEG, joint
     sensor_id_for_plot = sensors[0] if leg_to_process.upper() == 'L' else sensors[1]
     omega_color = colors.get(sensor_id_for_plot, 'tab:grey')
     ax1.plot(t_plot_master, omega_plot_aligned, color=omega_color, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
-    ax1.set_xlabel('Time (s) - from Corrected CSV'); ax1.set_ylabel('Angular Velocity (rad/s)', color=omega_color)
-    ax1.tick_params(axis='y', labelcolor=omega_color)
+    ax1.set_xlabel('Time (s) - from Corrected CSV', color='black'); ax1.set_ylabel('Angular Velocity (rad/s)', color='black')
+    ax1.tick_params(axis='y', labelcolor='black')
+    ax1.tick_params(axis='x', labelcolor='black')
 
     phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
     phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
@@ -1011,9 +1013,9 @@ def plot_corrected_gait_phases_from_csv(raw_file_path, leg_to_process=LEG, joint
                 time_end_span = t_plot_master[actual_seg_end_idx-1] + dt/2
                 ax1.axvspan(time_start_span, time_end_span, color=color_val_phase, alpha=0.35, label=label_to_use_phase, zorder=-1)
     
-    if len(ms_event_times) > 0: ax1.plot(ms_event_times, ms_event_values, '.', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing (raw)')
+    if len(ms_event_times) > 0: ax1.plot(ms_event_times, ms_event_values, 'o', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing (raw)')
     if len(hs_event_times) > 0: ax1.plot(hs_event_times, hs_event_values, 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike (raw)')
-    if len(to_event_times) > 0: ax1.plot(to_event_times, to_event_values, 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off (raw)')
+    if len(to_event_times) > 0: ax1.plot(to_event_times, to_event_values, 'o', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off (raw)')
 
     ax2 = None
     if joint_names_to_plot and joint_data_csv:
@@ -1022,8 +1024,8 @@ def plot_corrected_gait_phases_from_csv(raw_file_path, leg_to_process=LEG, joint
         joint_angle_palette = plt.cm.get_cmap('viridis', max(1, len(joint_data_csv))) 
         for i, (joint_name, joint_values) in enumerate(joint_data_csv.items()):
             ax2.plot(t_plot_master, joint_values, color=joint_angle_palette(i), linestyle='--', linewidth=1.2, label=f'{joint_name} (CSV)')
-        ax2.set_ylabel('Joint Angles (degrees)', color=colors.get('joint_angle_default', 'tab:red'))
-        ax2.tick_params(axis='y', labelcolor=colors.get('joint_angle_default', 'tab:red'))
+        ax2.set_ylabel('Joint Angles (degrees)', color='black')
+        ax2.tick_params(axis='y', labelcolor='black')
 
     plt.title(f'Corrected Data Visualisation - {base_filename_raw} ({sensor_id_for_plot})')
     ax1.grid(True, linestyle=':', alpha=0.5)
