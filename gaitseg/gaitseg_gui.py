@@ -23,7 +23,7 @@ GUI_BASE_DATA_DIR = gal.root_dir
 GUI_OUTPUT_DIR = os.path.expanduser("~/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected")
 SUBJECT_DIRS_PATTERN = "S*"
 TRIAL_FILE_PATTERN = "S*_A01_T*.raw"
-MAGNET_TOLERANCE_SECONDS = 0.3 # Increased tolerance for stronger magnet
+MAGNET_TOLERANCE_SECONDS = 0.1 # Increased tolerance for stronger magnet
 
 os.makedirs(GUI_OUTPUT_DIR, exist_ok=True)
 

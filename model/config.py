@@ -3,8 +3,8 @@ import torch
 import os
 
 # --- Data Configuration ---
-BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg"
-OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/model/results" 
+BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
+OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/model/" 
 SUBJECT_DIRS_PATTERN = "S*" # Pattern to find subject directories (e.g., S40, S41, ...)
 TRIAL_FILE_PATTERN = "S*_A01_T*.csv" # Pattern for trial files within subject dirs
 
@@ -47,10 +47,16 @@ EARLY_STOPPING_DELTA = 0.001 # Minimum change to qualify as an improvement
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 128
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_gait_phase_model.pth") # Default path for saved model
+#DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_gait_phase_model.pth") # Default path for saved model
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold2.pth")
 
 # --- Plotting ---
 PLOT_MAX_SAMPLES_INFERENCE = 2000 # Max samples to plot for inference visualization
+
+# Ajustes para entrenar rápido para debug
+# NUM_EPOCHS = 20
+# K_FOLDS = 3
+
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)

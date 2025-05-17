@@ -1,11 +1,20 @@
+## 5 custom IMUs
 # Legend:
-#   qsHIPS = lower back
-#   qsRUL  = right upper leg
-#   qsRLL  = right lower leg    <--
-#   qsLUL  = left upper leg
-#   qsLLL  = left lower leg     <-- we use this
-#   qsBACK = upper back
-#   qsRUA  = right upper arm
-#   qsRLA  = right lower arm
-#   qsLUA  = left upper arm
-#   qsLLA  = left lower arm
+    qsHIPS = lower back
+    qsRUL  = right upper leg
+    qsRLL  = right lower leg    <--
+    qsLUL  = left upper leg
+    qsLLL  = left lower leg     <-- We use this mainly
+    qsBACK = upper back
+    qsRUA  = right upper arm
+    qsRLA  = right lower arm
+    qsLUA  = left upper arm
+    qsLLA  = left lower arm
+
+## Calculated angles
+    knee_angle_r
+    knee_angle_l
+    arm_flex_r
+    elbow_flex_r
+    arm_flex_l
+    elbow_flex_l

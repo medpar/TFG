@@ -17,6 +17,11 @@ fs       = 50                  # IMU sample-rate  [Hz]
 dt       = 1.0 / fs            # time step        [s]
 cutoff   = 0.5                # LP-cut-off       [Hz] # Your current value
 min_dist = 0.3                # m1 event gap    [s] # Your current value
+LEG         = 'l'          
+JOINTS      = [            
+    f'knee_angle_{LEG}',
+]
+
 
 def butter_lowpass(cut, fs, order=4):
     nyq = 0.5 * fs
@@ -249,71 +254,67 @@ def process_file(file_path):
 
 
     # 3. Compute and Plot Phases
-    if t_w is not None and omega_event_signal_final is not None and \
-       heel_strikes is not None and toe_offs is not None and flat_mask_pf is not None:
+    # if t_w is not None and omega_event_signal_final is not None and \
+    #    heel_strikes is not None and toe_offs is not None and flat_mask_pf is not None:
         
-        phase_labels_pf = compute_phase_labels_from_events(
-            len(t_w), heel_strikes, toe_offs, flat_mask_pf
-        )
+    #     phase_labels_pf = compute_phase_labels_from_events(
+    #         len(t_w), heel_strikes, toe_offs, flat_mask_pf
+    #     )
         
-        plt.figure(figsize=(15, 5)) 
-        plt.plot(t_w, omega_event_signal_final, color=color_for_plot, alpha=0.6, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
+    #     plt.figure(figsize=(15, 5)) 
+    #     plt.plot(t_w, omega_event_signal_final, color=color_for_plot, alpha=0.6, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
 
-        phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
-        phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
+    #     phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
+    #     phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
         
-        legend_phases_added = set()
-        for ph_val, color_val_phase in phase_colors_map.items(): # Renamed color_val to color_val_phase
-            mask = (phase_labels_pf == ph_val)
-            if not np.any(mask):
-                continue
+    #     legend_phases_added = set()
+    #     for ph_val, color_val_phase in phase_colors_map.items(): # Renamed color_val to color_val_phase
+    #         mask = (phase_labels_pf == ph_val)
+    #         if not np.any(mask):
+    #             continue
 
-            diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int))
-            starts = np.where(diff_mask == 1)[0]
-            ends = np.where(diff_mask == -1)[0]
+    #         diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int))
+    #         starts = np.where(diff_mask == 1)[0]
+    #         ends = np.where(diff_mask == -1)[0]
 
-            for seg_start, seg_end in zip(starts, ends):
-                if seg_start < seg_end and seg_start < len(t_w):
-                    actual_seg_end_idx = min(seg_end, len(t_w))
-                    if actual_seg_end_idx <= seg_start: continue
+    #         for seg_start, seg_end in zip(starts, ends):
+    #             if seg_start < seg_end and seg_start < len(t_w):
+    #                 actual_seg_end_idx = min(seg_end, len(t_w))
+    #                 if actual_seg_end_idx <= seg_start: continue
                     
-                    label_to_use = None
-                    if ph_val not in legend_phases_added:
-                        label_to_use = phase_legend_labels_map.get(ph_val)
-                        legend_phases_added.add(ph_val)
+    #                 label_to_use = None
+    #                 if ph_val not in legend_phases_added:
+    #                     label_to_use = phase_legend_labels_map.get(ph_val)
+    #                     legend_phases_added.add(ph_val)
                     
-                    end_time_for_span = t_w[actual_seg_end_idx-1] if actual_seg_end_idx > seg_start else t_w[seg_start]
-                    plt.axvspan(t_w[seg_start], end_time_for_span + dt/2, 
-                                color=color_val_phase, alpha=0.4, label=label_to_use) # Used color_val_phase
+    #                 end_time_for_span = t_w[actual_seg_end_idx-1] if actual_seg_end_idx > seg_start else t_w[seg_start]
+    #                 plt.axvspan(t_w[seg_start], end_time_for_span + dt/2, 
+    #                             color=color_val_phase, alpha=0.4, label=label_to_use) # Used color_val_phase
         
-        event_marker_size_phase_plot = 6
-        # Use valid_* from plot 2, ensuring indices are valid for t_w and omega_event_signal_final
-        if valid_ms:
-            plt.plot(t_w[valid_ms], omega_event_signal_final[valid_ms], '.', color='red', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
-        if valid_hs:
-            plt.plot(t_w[valid_hs], omega_event_signal_final[valid_hs], 'o', color='magenta', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
-        if valid_to:
-            plt.plot(t_w[valid_to], omega_event_signal_final[valid_to], 's', color='cyan', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
+    #     event_marker_size_phase_plot = 6
+    #     # Use valid_* from plot 2, ensuring indices are valid for t_w and omega_event_signal_final
+    #     if valid_ms:
+    #         plt.plot(t_w[valid_ms], omega_event_signal_final[valid_ms], '.', color='red', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
+    #     if valid_hs:
+    #         plt.plot(t_w[valid_hs], omega_event_signal_final[valid_hs], 'o', color='magenta', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
+    #     if valid_to:
+    #         plt.plot(t_w[valid_to], omega_event_signal_final[valid_to], 's', color='cyan', markersize=event_marker_size_phase_plot, alpha=0.7, label='_nolegend_')
 
-        plt.title(f'Computed Gait Phases - {os.path.basename(file_path)} ({sensor_id_for_plot})')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Angular Velocity (rad/s)')
+    #     plt.title(f'Computed Gait Phases - {os.path.basename(file_path)} ({sensor_id_for_plot})')
+    #     plt.xlabel('Time (s)')
+    #     plt.ylabel('Angular Velocity (rad/s)')
         
-        handles_plot3, labels_plot3 = plt.gca().get_legend_handles_labels()
-        by_label_plot3 = dict(zip(labels_plot3, handles_plot3)) # Consolidate legend
-        plt.legend(by_label_plot3.values(), by_label_plot3.keys(), loc='best')
+    #     handles_plot3, labels_plot3 = plt.gca().get_legend_handles_labels()
+    #     by_label_plot3 = dict(zip(labels_plot3, handles_plot3)) # Consolidate legend
+    #     plt.legend(by_label_plot3.values(), by_label_plot3.keys(), loc='best')
         
-        plt.grid(True, linestyle=':', alpha=0.5)
-        plt.tight_layout()
-        plt.show()
-    else:
-        print(f"  Skipping phase plot for {sensor_id_for_plot} due to missing data for phase computation.")
+    #     plt.grid(True, linestyle=':', alpha=0.5)
+    #     plt.tight_layout()
+    #     plt.show()
+    # else:
+    #     print(f"  Skipping phase plot for {sensor_id_for_plot} due to missing data for phase computation.")
 
 
-LEG         = 'l'          
-JOINTS      = [            
-    f'knee_angle_{LEG}',
-]
 
 
 def compute_velocity_and_events(raw_filepath):
