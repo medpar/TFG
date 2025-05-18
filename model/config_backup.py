@@ -4,8 +4,7 @@ import os
 
 # --- Data Configuration ---
 BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
-#OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests/" 
-OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests/"
+OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests/" 
 SUBJECT_DIRS_PATTERN = "S*"                         
 TRIAL_FILE_PATTERN = "S*_A01_T*_corrected.csv"     
 
@@ -46,10 +45,14 @@ EARLY_STOPPING_DELTA = 0.001 # Minimum change to qualify as an improvement
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 128
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "trial12_best_model_fold0.pth")
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold1.pth")
 
 # --- Plotting ---
 PLOT_MAX_SAMPLES_INFERENCE = 20000 # Pongo un valor muy alto para que no me limite los datos
+
+
+
+
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
