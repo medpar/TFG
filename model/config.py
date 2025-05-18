@@ -4,7 +4,7 @@ import os
 
 # --- Data Configuration ---
 BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
-OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/model/" 
+OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/model_test_2/" 
 SUBJECT_DIRS_PATTERN = "S*"                         
 TRIAL_FILE_PATTERN = "S*_A01_T*_corrected.csv"     
 
@@ -34,7 +34,7 @@ WEIGHT_DECAY = 1e-5 # For AdamW optimizer
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --- Cross-Validation & Splitting (subject-wise) ---
-K_FOLDS = 1 # Number of folds for cross-validation. Set to 1 for a single train/val/test split.
+K_FOLDS = 3 # Number of folds for cross-validation. Set to 1 for a single train/val/test split.
 TEST_SPLIT_RATIO = 0.15 # Proportion of subjects for the final test set (if K_FOLDS=1)
 VALIDATION_SPLIT_RATIO = 0.15 # Proportion of subjects for validation (if K_FOLDS=1, taken from training set)
 RANDOM_SEED = 42
@@ -45,14 +45,21 @@ EARLY_STOPPING_DELTA = 0.001 # Minimum change to qualify as an improvement
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 128
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold0.pth")
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold1.pth")
 
 # --- Plotting ---
-PLOT_MAX_SAMPLES_INFERENCE = 2000 # Max samples to plot for inference visualization
+PLOT_MAX_SAMPLES_INFERENCE = 20000 # Pongo un valor muy alto para que no me limite los datos
 
-# Ajustes para entrenar rápido para debug
-# NUM_EPOCHS = 20
-# K_FOLDS = 3
+
+# Comienzo a cambiar parametros para reducir overfitting
+LSTM_DROPOUT = 0.5
+LINEAR_DROPOUT = 0.5 
+LSTM_HIDDEN_SIZE = 64
+WEIGHT_DECAY = 5e-4
+
+#LEARNING_RATE = 0.0001
+# EARLY_STOPPING_PATIENCE = 15 
+
 
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
