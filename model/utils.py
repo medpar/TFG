@@ -14,6 +14,10 @@ import os
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(CURRENT_DIR)
 GAITSEG_DIR = os.path.join(PARENT_DIR, "gaitseg")
+OUTPUT_PLOTS_DIR = os.path.join(config.OUTPUT_DIR, "output_plots")
+
+# Create output directory if it doesn't exist
+os.makedirs(OUTPUT_PLOTS_DIR, exist_ok=True)
 
 if GAITSEG_DIR not in sys.path:
     sys.path.append(GAITSEG_DIR)
@@ -51,8 +55,8 @@ def plot_training_history(history, fold_num=None):
 
     plt.tight_layout()
     plot_filename = f"{title_prefix}training_history.png".replace(" ", "_").lower()
-    plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
-    print(f"Saved training history plot to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
+    plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename))
+    print(f"Saved training history plot to {os.path.join(OUTPUT_PLOTS_DIR, plot_filename)}")
     plt.close(fig)
 
 
@@ -85,8 +89,8 @@ def plot_confusion_matrix_custom(y_true_flat, y_pred_flat, class_names, title='C
     ax.set_title(f'{title_prefix}{title}')
     
     plot_filename = f"{title_prefix}{title.replace(' ', '_').lower()}_confusion_matrix.png"
-    plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
-    print(f"Saved confusion matrix to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
+    plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename))
+    print(f"Saved confusion matrix to {os.path.join(OUTPUT_PLOTS_DIR, plot_filename)}")
     plt.close(fig)
 
 def save_checkpoint(state, is_best, filename="checkpoint.pth", best_filename="best_model.pth", output_dir=config.OUTPUT_DIR):
@@ -147,8 +151,8 @@ def plot_model_predictions_vs_true_phases(timestamps, true_phases, predicted_pha
     plt.tight_layout()
     
     plot_filename = f"model_vs_true_phases{title_suffix.replace(' ', '_').lower()}.png"
-    plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
-    print(f"Saved model vs true phases plot to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
+    plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename))
+    print(f"Saved model vs true phases plot to {os.path.join(OUTPUT_PLOTS_DIR, plot_filename)}")
     plt.close(fig)
 
 
@@ -237,8 +241,8 @@ def plot_model_predictions_vs_angular_velocity(
 
     ax1.plot(t_plot_master_sub, omega_plot_aligned_sub, color=omega_color, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
     ax1.set_xlabel('Time (s) - from Prediction CSV')
-    ax1.set_ylabel('Angular Velocity (rad/s)', color=omega_color)
-    ax1.tick_params(axis='y', labelcolor=omega_color)
+    ax1.set_ylabel('Angular Velocity (rad/s)', color='black')
+    ax1.tick_params(axis='y', labelcolor='black')
 
     # Plot phase regions from model predictions
     phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'} # Match GUI
@@ -271,11 +275,11 @@ def plot_model_predictions_vs_angular_velocity(
     
     # Plot event markers (from raw IMU processing)
     if len(ms_event_times) > 0:
-        ax1.plot(ms_event_times, ms_event_values, '.', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing (raw IMU)')
+        ax1.plot(ms_event_times, ms_event_values, 'o', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing (raw IMU)')
     if len(hs_event_times) > 0:
         ax1.plot(hs_event_times, hs_event_values, 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike (raw IMU)')
     if len(to_event_times) > 0:
-        ax1.plot(to_event_times, to_event_values, 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off (raw IMU)')
+        ax1.plot(to_event_times, to_event_values, 'o', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off (raw IMU)')
 
     plt.title(f"Model Predicted Phases vs. IMU Angular Velocity {title_suffix}")
     ax1.grid(True, linestyle=':', alpha=0.5)
@@ -283,8 +287,8 @@ def plot_model_predictions_vs_angular_velocity(
     
     plt.tight_layout()
     plot_filename = f"model_phases_vs_ang_vel{title_suffix.replace(' ', '_').lower()}.png"
-    plt.savefig(os.path.join(config.OUTPUT_DIR, plot_filename))
-    print(f"Saved model phases vs angular velocity plot to {os.path.join(config.OUTPUT_DIR, plot_filename)}")
+    plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename))
+    print(f"Saved model phases vs angular velocity plot to {os.path.join(OUTPUT_PLOTS_DIR, plot_filename)}")
     plt.close(fig)
 
 

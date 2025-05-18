@@ -351,7 +351,7 @@ if __name__ == '__main__':
     # Infer on the _corrected.csv files produced by the GUI
     inference_source_dir = os.path.expanduser("~/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected") # From gaitseg_gui.py
     
-    output_prediction_dir = os.path.join(config.OUTPUT_DIR, "inference_model_vs_gui")
+    output_prediction_dir = os.path.join(config.OUTPUT_DIR, "inference_model_vs_imus")
     
     if not os.path.exists(config.DEFAULT_MODEL_PATH):
         print(f"Warning: Default model path {config.DEFAULT_MODEL_PATH} not found. Inference will likely fail.")

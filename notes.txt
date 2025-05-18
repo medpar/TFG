@@ -12,8 +12,8 @@
     qsLLA  = left lower arm
 
 ## Calculated angles
-    knee_angle_r
-    knee_angle_l
+    knee_angle_r        <--
+    knee_angle_l        <--
     arm_flex_r
     elbow_flex_r
     arm_flex_l

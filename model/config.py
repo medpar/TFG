@@ -5,14 +5,14 @@ import os
 # --- Data Configuration ---
 BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
 OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/model/" 
-SUBJECT_DIRS_PATTERN = "S*" # Pattern to find subject directories (e.g., S40, S41, ...)
-TRIAL_FILE_PATTERN = "S*_A01_T*.csv" # Pattern for trial files within subject dirs
+SUBJECT_DIRS_PATTERN = "S*"                         
+TRIAL_FILE_PATTERN = "S*_A01_T*_corrected.csv"     
 
-FEATURE_COLUMNS = ['knee_angle_l'] # Podría poner también knee_angle_r
+FEATURE_COLUMNS = ['knee_angle_l', 'knee_angle_r'] 
 TARGET_COLUMN = 'phase'
 TIME_COLUMN = 'time'
 NUM_FEATURES = len(FEATURE_COLUMNS)
-NUM_CLASSES = 3  # 0: Swing, 1: Stance, 2: Turn (as per your description)
+NUM_CLASSES = 3                                     # 0: Swing, 1: Stance, 2: Turn 
 
 # --- Preprocessing ---
 SEQUENCE_LENGTH = 100  # e.g., 100 timesteps (2 seconds at 50Hz)
@@ -23,7 +23,7 @@ MODEL_TYPE = "LSTM" # Could be "BiLSTM" or other variants if you extend
 LSTM_HIDDEN_SIZE = 128
 NUM_LSTM_LAYERS = 2
 LSTM_DROPOUT = 0.3 # Dropout between LSTM layers if num_layers > 1
-BIDIRECTIONAL_LSTM = True
+BIDIRECTIONAL_LSTM = True   # We use BiLSTM
 LINEAR_DROPOUT = 0.4 # Dropout before the final classification layer
 
 # --- Training Hyperparameters ---
@@ -33,10 +33,8 @@ NUM_EPOCHS = 100 # Max epochs; early stopping will be used
 WEIGHT_DECAY = 1e-5 # For AdamW optimizer
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# --- Cross-Validation & Splitting ---
-# We'll use subject-wise splitting. If K_FOLDS > 1, it implies GroupKFold.
-# If K_FOLDS = 1, it means a single train/val/test split.
-K_FOLDS = 5 # Number of folds for cross-validation. Set to 1 for a single train/val/test split.
+# --- Cross-Validation & Splitting (subject-wise) ---
+K_FOLDS = 1 # Number of folds for cross-validation. Set to 1 for a single train/val/test split.
 TEST_SPLIT_RATIO = 0.15 # Proportion of subjects for the final test set (if K_FOLDS=1)
 VALIDATION_SPLIT_RATIO = 0.15 # Proportion of subjects for validation (if K_FOLDS=1, taken from training set)
 RANDOM_SEED = 42
@@ -47,8 +45,7 @@ EARLY_STOPPING_DELTA = 0.001 # Minimum change to qualify as an improvement
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 128
-#DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_gait_phase_model.pth") # Default path for saved model
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold2.pth")
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold0.pth")
 
 # --- Plotting ---
 PLOT_MAX_SAMPLES_INFERENCE = 2000 # Max samples to plot for inference visualization
@@ -58,7 +55,6 @@ PLOT_MAX_SAMPLES_INFERENCE = 2000 # Max samples to plot for inference visualizat
 # K_FOLDS = 3
 
 
-# Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 if __name__ == '__main__':

@@ -5,16 +5,16 @@ import numpy as np
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QFileDialog, QListWidget, QListWidgetItem,
-                             QRadioButton, QGroupBox, QMessageBox)
+                             QRadioButton, QGroupBox, QMessageBox, QCheckBox) # Added QCheckBox
 from PyQt6.QtCore import Qt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from scipy.interpolate import interp1d # Added for resampling
+from scipy.interpolate import interp1d
 
 try:
-    import gaitseg_utils as gal # Using your script name
+    import gaitseg_utils as gal
 except ImportError:
     print("Error: Could not import 'gaitseg_utils.py'. Make sure it's in the correct path and named correctly.")
     sys.exit(1)
@@ -23,7 +23,7 @@ GUI_BASE_DATA_DIR = gal.root_dir
 GUI_OUTPUT_DIR = os.path.expanduser("~/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected")
 SUBJECT_DIRS_PATTERN = "S*"
 TRIAL_FILE_PATTERN = "S*_A01_T*.raw"
-MAGNET_TOLERANCE_SECONDS = 0.1 # Increased tolerance for stronger magnet
+MAGNET_TOLERANCE_SECONDS = 0.1
 
 os.makedirs(GUI_OUTPUT_DIR, exist_ok=True)
 
@@ -31,12 +31,9 @@ class GaitCorrectionApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gait Phase Correction Tool")
-        self.setGeometry(100, 100, 1400, 800)
+        self.setGeometry(100, 100, 1400, 850) # Increased height slightly for new controls
 
-        self.raw_file_paths = []
-        self.current_file_index = -1
-        self.current_file_path = None
-
+        # ... (other initializations remain the same) ...
         self.current_t_w = None
         self.current_omega_signal = None
         self.current_mid_swing = []
@@ -53,10 +50,12 @@ class GaitCorrectionApp(QMainWindow):
         self.selected_segment_patch = None
         self.selected_segment_indices = None
 
+
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout(main_widget)
 
+        # --- Left Panel (File List, Navigation, Status) ---
         left_panel = QVBoxLayout()
         self.file_list_widget = QListWidget()
         self.file_list_widget.currentItemChanged.connect(self.on_file_selected_from_list_wrapper)
@@ -75,46 +74,64 @@ class GaitCorrectionApp(QMainWindow):
         self.status_label = QLabel("Status: Load files to begin.")
         left_panel.addWidget(self.status_label)
 
+        # --- NEW: Joint Angle Output Selection ---
+        joint_output_groupbox = QGroupBox("Joint Angles for Output CSV")
+        joint_output_layout = QVBoxLayout()
+        self.cb_knee_l = QCheckBox("Knee Angle Left (knee_angle_l)")
+        self.cb_knee_r = QCheckBox("Knee Angle Right (knee_angle_r)")
+        self.cb_knee_l.setChecked(True) # Default to left knee, matching current gal.JOINTS
+        # self.cb_knee_r.setChecked(False) # Default for right
+        joint_output_layout.addWidget(self.cb_knee_l)
+        joint_output_layout.addWidget(self.cb_knee_r)
+        joint_output_groupbox.setLayout(joint_output_layout)
+        left_panel.addWidget(joint_output_groupbox)
+        # --- END NEW ---
+
+        left_panel.addStretch() # Push status label and joint groupbox up a bit if space
         main_layout.addLayout(left_panel, 1)
 
+
+        # --- Right Panel (Plot, Mode, Phase Assignment, Save) ---
         right_panel = QVBoxLayout()
-        self.figure = Figure(figsize=(12, 6))
-        self.canvas = FigureCanvas(self.figure)
-        self.ax = self.figure.add_subplot(111)
+        self.figure = Figure(figsize=(12, 6)) # Matplotlib figure
+        self.canvas = FigureCanvas(self.figure) # Matplotlib canvas widget
+        self.ax = self.figure.add_subplot(111) # Matplotlib axes
         self.canvas.mpl_connect('button_press_event', self.on_plot_click)
         right_panel.addWidget(self.canvas)
 
-        controls_layout = QHBoxLayout()
+        # Controls Layout (Mode and Phase Assignment side-by-side)
+        controls_H_layout = QHBoxLayout() # Horizontal layout for mode and phase
+
         mode_groupbox = QGroupBox("Interaction Mode")
-        mode_layout = QVBoxLayout()
+        mode_V_layout = QVBoxLayout() # Vertical layout for radio buttons
         self.modify_mode_radio = QRadioButton("Modify Existing Phase Segment")
         self.define_mode_radio = QRadioButton("Define New Phase Region (2 Clicks)")
         self.modify_mode_radio.setChecked(True)
         self.modify_mode_radio.toggled.connect(self.on_mode_change)
-        mode_layout.addWidget(self.modify_mode_radio)
-        mode_layout.addWidget(self.define_mode_radio)
-        mode_groupbox.setLayout(mode_layout)
-        controls_layout.addWidget(mode_groupbox)
+        mode_V_layout.addWidget(self.modify_mode_radio)
+        mode_V_layout.addWidget(self.define_mode_radio)
+        mode_groupbox.setLayout(mode_V_layout)
+        controls_H_layout.addWidget(mode_groupbox)
 
         phase_groupbox = QGroupBox("Assign Phase")
-        phase_layout = QHBoxLayout()
+        phase_assign_H_layout = QHBoxLayout() # Horizontal layout for phase buttons
         self.phase_buttons = {}
         self.phase_names = {0: "Stance", 1: "Swing", 2: "Turn", -1: "Unclassified"}
         for phase_code, phase_name in self.phase_names.items():
             btn = QPushButton(f"{phase_name} ({phase_code})")
             btn.clicked.connect(lambda checked, pc=phase_code: self.assign_phase_to_selection(pc))
             self.phase_buttons[phase_code] = btn
-            phase_layout.addWidget(btn)
-        phase_groupbox.setLayout(phase_layout)
-        controls_layout.addWidget(phase_groupbox)
+            phase_assign_H_layout.addWidget(btn)
+        phase_groupbox.setLayout(phase_assign_H_layout)
+        controls_H_layout.addWidget(phase_groupbox)
         
-        right_panel.addLayout(controls_layout)
+        right_panel.addLayout(controls_H_layout)
 
         self.save_button = QPushButton("Save Current Corrections")
         self.save_button.clicked.connect(self.save_current_file_corrections)
         right_panel.addWidget(self.save_button)
 
-        main_layout.addLayout(right_panel, 3)
+        main_layout.addLayout(right_panel, 3) # Plot takes more space
 
         self.populate_file_list()
         if self.raw_file_paths:
@@ -137,9 +154,10 @@ class GaitCorrectionApp(QMainWindow):
 
     def on_file_selected_from_list_wrapper(self, current_item, previous_item):
         if current_item:
-            if self.data_is_dirty and self.current_file_path:
+            # Check for unsaved changes only if a file was previously loaded
+            if self.data_is_dirty and self.current_file_path and previous_item:
                 print(f"Auto-saving changes for {os.path.basename(self.current_file_path)} before switching.")
-                self.save_corrected_csv()
+                self.save_corrected_csv() # This will use current checkbox states
                 self.data_is_dirty = False
             
             idx = self.file_list_widget.row(current_item)
@@ -147,6 +165,7 @@ class GaitCorrectionApp(QMainWindow):
                 self.load_file_data(idx)
 
     def load_file_data(self, file_index):
+        # ... (identical to your existing load_file_data until after results = gal.compute_velocity_and_events)
         if not (0 <= file_index < len(self.raw_file_paths)):
             self.status_label.setText("Invalid file index.")
             return
@@ -162,7 +181,10 @@ class GaitCorrectionApp(QMainWindow):
         QApplication.processEvents()
 
         try:
-            results = gal.compute_velocity_and_events(self.current_file_path)
+            # Note: compute_velocity_and_events in gal uses its own global gal.LEG setting
+            # for determining which leg's angular velocity to compute and plot.
+            # This is independent of which knee angles we choose to *save* to CSV.
+            results = gal.compute_velocity_and_events(self.current_file_path) # This plots based on gal.LEG
             if results[0] is None:
                 raise ValueError("compute_velocity_and_events returned None.")
 
@@ -181,16 +203,12 @@ class GaitCorrectionApp(QMainWindow):
             if os.path.exists(corrected_csv_path):
                 print(f"Loading previously corrected phases from: {corrected_csv_path}")
                 df_corrected = pd.read_csv(corrected_csv_path)
-                # Corrected CSV has 'time' and 'phase' at 50Hz.
-                # self.current_t_w is at the native IMU processing rate from compute_velocity_and_events.
-                # We need to "upsample" the phases from the CSV to match self.current_t_w for display.
                 if 'time' in df_corrected.columns and 'phase' in df_corrected.columns and \
                    len(self.current_t_w) > 0 and len(df_corrected['time']) > 0:
                     
                     corrected_time_50hz = df_corrected['time'].values
                     corrected_phases_50hz = df_corrected['phase'].values.astype(int)
 
-                    # Ensure sorted for interpolation
                     sort_indices_corrected = np.argsort(corrected_time_50hz)
                     sorted_corrected_time_50hz = corrected_time_50hz[sort_indices_corrected]
                     sorted_corrected_phases_50hz = corrected_phases_50hz[sort_indices_corrected]
@@ -200,12 +218,12 @@ class GaitCorrectionApp(QMainWindow):
                         sorted_corrected_phases_50hz,
                         kind='nearest',
                         bounds_error=False,
-                        fill_value=(sorted_corrected_phases_50hz[0], sorted_corrected_phases_50hz[-1]) # Extrapolate with nearest
+                        fill_value=(sorted_corrected_phases_50hz[0], sorted_corrected_phases_50hz[-1])
                     )
                     self.editable_phase_labels = phase_upsampler(self.current_t_w).astype(int)
                     self.status_label.setText(f"Loaded (resampled prior corrections): {os.path.basename(self.current_file_path)}")
                 else:
-                    print(f"Warning: Corrected CSV {corrected_csv_path} missing time/phase, or current_t_w is empty. Recomputing initial phases.")
+                    print(f"Warning: Corrected CSV {corrected_csv_path} missing time/phase, or current_t_w empty. Recomputing initial.")
                     self.editable_phase_labels = gal.compute_phase_labels_from_events(
                         len(self.current_t_w), self.current_hs, self.current_to, self.current_flat_mask
                     )
@@ -238,6 +256,7 @@ class GaitCorrectionApp(QMainWindow):
         self.plot_current_data()
 
     def on_mode_change(self):
+        # ... (identical to your existing on_mode_change) ...
         self.defining_new_region_mode = self.define_mode_radio.isChecked()
         self.new_region_start_idx = None
         if self.temp_vline_start: self.temp_vline_start.remove(); self.temp_vline_start = None
@@ -247,7 +266,9 @@ class GaitCorrectionApp(QMainWindow):
         if self.canvas: self.canvas.draw_idle()
         self.status_label.setText(f"Mode: {'Define New Region' if self.defining_new_region_mode else 'Modify Existing Segment'}")
 
+
     def plot_current_data(self):
+        # ... (identical to your existing plot_current_data) ...
         self.ax.clear()
         if self.current_t_w is None or self.current_omega_signal is None or self.editable_phase_labels is None:
             self.ax.text(0.5, 0.5, "No data to display or error in loading.", ha='center', va='center')
@@ -299,20 +320,31 @@ class GaitCorrectionApp(QMainWindow):
                         label_to_use = phase_legend_labels_map.get(ph_val)
                         legend_phases_added.add(ph_val)
                     
-                    end_time_for_span = plot_t[actual_seg_end_idx-1] if actual_seg_end_idx > seg_start else plot_t[seg_start]
-                    self.ax.axvspan(plot_t[seg_start], end_time_for_span + gal.dt/2, # gal.dt is fs=50hz, this might need adjustment if plot_t is higher rate
+                    time_start_span = plot_t[seg_start]
+                    time_end_span = plot_t[actual_seg_end_idx-1]
+                    
+                    # Determine dynamic dt for the end of the span for axvspan visual width
+                    if actual_seg_end_idx < len(plot_t):
+                        dynamic_dt_half = (plot_t[actual_seg_end_idx] - plot_t[actual_seg_end_idx-1]) / 2
+                    elif actual_seg_end_idx > 1 : # Use previous interval if at the very end
+                        dynamic_dt_half = (plot_t[actual_seg_end_idx-1] - plot_t[actual_seg_end_idx-2]) / 2
+                    else: # Fallback to global gal.dt if only one point or very few
+                        dynamic_dt_half = gal.dt / 2
+
+                    self.ax.axvspan(time_start_span, time_end_span + dynamic_dt_half,
                                     color=color_val, alpha=0.4, label=label_to_use)
         
         event_marker_size = 6
         if self.current_mid_swing:
             valid_ms = [idx for idx in self.current_mid_swing if 0 <= idx < len(plot_t) and 0 <= idx < len(plot_omega)]
-            if valid_ms: self.ax.plot(plot_t[valid_ms], plot_omega[valid_ms], 'o', color='red', markersize=event_marker_size, alpha=0.7, label='Mid-Swing')
+            if valid_ms: self.ax.plot(plot_t[valid_ms], plot_omega[valid_ms], '.', color='red', markersize=event_marker_size, alpha=0.7, label='Mid-Swing') # Changed marker
         if self.current_hs:
             valid_hs = [idx for idx in self.current_hs if 0 <= idx < len(plot_t) and 0 <= idx < len(plot_omega)]
             if valid_hs: self.ax.plot(plot_t[valid_hs], plot_omega[valid_hs], 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike')
         if self.current_to:
             valid_to = [idx for idx in self.current_to if 0 <= idx < len(plot_t) and 0 <= idx < len(plot_omega)]
-            if valid_to: self.ax.plot(plot_t[valid_to], plot_omega[valid_to], 'o', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off')
+            if valid_to: self.ax.plot(plot_t[valid_to], plot_omega[valid_to], 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off') # Changed marker
+
 
         self.ax.set_title(f'Interactive Correction - {os.path.basename(self.current_file_path)}')
         self.ax.set_xlabel('Time (s)')
@@ -324,7 +356,9 @@ class GaitCorrectionApp(QMainWindow):
         self.figure.tight_layout()
         self.canvas.draw()
 
+
     def _snap_to_event(self, click_time, click_idx_initial):
+        # ... (identical to your existing _snap_to_event) ...
         if self.current_t_w is None: return click_idx_initial
 
         all_event_indices = sorted(list(set(self.current_hs + self.current_to)))
@@ -348,8 +382,8 @@ class GaitCorrectionApp(QMainWindow):
             return closest_event_idx
         return click_idx_initial
 
-
     def on_plot_click(self, event):
+        # ... (identical to your existing on_plot_click) ...
         if event.inaxes != self.ax or self.current_t_w is None:
             return
         
@@ -379,51 +413,58 @@ class GaitCorrectionApp(QMainWindow):
                 
                 if start_final == end_final:
                     if start_final < len(self.current_t_w) -1 :
-                        end_final = start_final
+                        end_final = start_final # Keep as single point if cannot expand
                     elif start_final > 0:
-                        start_final = end_final -1
-                    else:
-                        end_final = start_final
-                self.selected_segment_indices = (start_final, end_final + 1 )
+                        start_final = end_final -1 # Try to expand backwards
+                    # else: remains single point
+                self.selected_segment_indices = (start_final, end_final + 1 ) # end_final is inclusive index, so +1 for slice
                 self.status_label.setText(f"New region defined: [{self.current_t_w[start_final]:.2f}s - {self.current_t_w[end_final]:.2f}s]. Select a phase.")
-        else:
+        else: # Modify existing phase segment
             boundary_events = sorted(list(set([0] + self.current_hs + self.current_to + [len(self.current_t_w)-1])))
             unique_boundaries = []
             if boundary_events:
                 unique_boundaries.append(boundary_events[0])
                 for i in range(1, len(boundary_events)):
-                    if boundary_events[i] > boundary_events[i-1]:
+                    if boundary_events[i] > boundary_events[i-1]: # Ensure unique and sorted
                          unique_boundaries.append(boundary_events[i])
             
             seg_start_idx, seg_end_idx = -1, -1
             for i in range(len(unique_boundaries) -1):
                 s_idx, e_idx = unique_boundaries[i], unique_boundaries[i+1]
-                if s_idx <= click_idx_raw < e_idx:
-                    seg_start_idx, seg_end_idx = s_idx, e_idx
+                if s_idx <= click_idx_raw < e_idx : # Click is within this segment
+                    seg_start_idx, seg_end_idx = s_idx, e_idx 
                     break
+            # Check last segment if click is beyond the last boundary before end of data
             if seg_start_idx == -1 and unique_boundaries and click_idx_raw >= unique_boundaries[-1] and click_idx_raw < len(self.current_t_w):
                  seg_start_idx = unique_boundaries[-1]
-                 seg_end_idx = len(self.current_t_w)
+                 seg_end_idx = len(self.current_t_w) # To the end of data
 
             if seg_start_idx != -1 and seg_end_idx != -1 and seg_start_idx < seg_end_idx:
-                self.selected_segment_indices = (seg_start_idx, seg_end_idx)
+                self.selected_segment_indices = (seg_start_idx, seg_end_idx) 
                 self.status_label.setText(f"Selected segment: [{self.current_t_w[seg_start_idx]:.2f}s - {self.current_t_w[seg_end_idx-1]:.2f}s]. Assign new phase.")
                 
-                # Estimate segment width based on current_t_w time, not gal.dt
-                time_start = self.current_t_w[seg_start_idx]
-                time_end = self.current_t_w[seg_end_idx-1] 
-                segment_width_time = time_end - time_start
-                if seg_end_idx < len(self.current_t_w): # Add average dt if not the last sample
-                    segment_width_time += (self.current_t_w[seg_end_idx] - self.current_t_w[seg_end_idx-1]) / 2
-                else: # Add average dt from previous sample if at the very end
-                     segment_width_time += (self.current_t_w[seg_end_idx-1] - self.current_t_w[seg_end_idx-2]) / 2 if seg_end_idx > 1 else gal.dt
+                time_start_patch = self.current_t_w[seg_start_idx]
+                # For patch width, go up to the start of the next segment or end of data
+                time_end_patch = self.current_t_w[seg_end_idx-1] 
+                
+                # Dynamic dt for patch visual width
+                if seg_start_idx > 0:
+                    dt_start_patch_half = (self.current_t_w[seg_start_idx] - self.current_t_w[seg_start_idx-1]) / 2
+                else:
+                    dt_start_patch_half = (self.current_t_w[1] - self.current_t_w[0]) / 2 if len(self.current_t_w) > 1 else gal.dt/2
 
+                if seg_end_idx < len(self.current_t_w):
+                    dt_end_patch_half = (self.current_t_w[seg_end_idx] - self.current_t_w[seg_end_idx-1]) / 2
+                else: # At the very end of data
+                    dt_end_patch_half = (self.current_t_w[seg_end_idx-1] - self.current_t_w[seg_end_idx-2]) / 2 if seg_end_idx > 1 else gal.dt/2
 
+                segment_width_time_patch = (time_end_patch + dt_end_patch_half) - (time_start_patch - dt_start_patch_half)
+                
                 self.selected_segment_patch = patches.Rectangle(
-                    (time_start - ( (self.current_t_w[seg_start_idx+1] - self.current_t_w[seg_start_idx])/2 if seg_start_idx+1 < len(self.current_t_w) else gal.dt/2 ) , self.ax.get_ylim()[0]), # adjust start slightly
-                    segment_width_time,
+                    (time_start_patch - dt_start_patch_half, self.ax.get_ylim()[0]),
+                    segment_width_time_patch,
                     self.ax.get_ylim()[1] - self.ax.get_ylim()[0],
-                    linewidth=2, edgecolor='gold', facecolor='yellow', alpha=0.2, zorder=0
+                    linewidth=2, edgecolor='gold', facecolor='yellow', alpha=0.2, zorder=0 
                 )
                 self.ax.add_patch(self.selected_segment_patch)
             else:
@@ -432,7 +473,9 @@ class GaitCorrectionApp(QMainWindow):
         
         self.canvas.draw_idle()
 
+
     def assign_phase_to_selection(self, phase_code):
+        # ... (identical to your existing assign_phase_to_selection) ...
         if self.editable_phase_labels is None:
             self.status_label.setText("No data loaded to assign phase.")
             return
@@ -446,24 +489,25 @@ class GaitCorrectionApp(QMainWindow):
                                           f"[{self.current_t_w[start_idx]:.2f}s - {self.current_t_w[end_idx_exclusive-1]:.2f}s].")
                 self.plot_current_data()
                 
-                self.selected_segment_indices = None
+                self.selected_segment_indices = None # Clear selection after assignment
                 if self.selected_segment_patch: self.selected_segment_patch.remove(); self.selected_segment_patch = None
-                if self.defining_new_region_mode:
+                if self.defining_new_region_mode: # Reset define mode if it was active
                     self.new_region_start_idx = None
                     if self.temp_vline_start: self.temp_vline_start.remove(); self.temp_vline_start = None
                     if self.temp_vline_end: self.temp_vline_end.remove(); self.temp_vline_end = None
-                    self.canvas.draw_idle()
+                    # self.modify_mode_radio.setChecked(True) # Optionally switch back to modify mode
+                    self.canvas.draw_idle() 
             else:
                 self.status_label.setText(f"Error: Invalid segment indices for assignment ({start_idx}, {end_idx_exclusive}). Max index: {len(self.editable_phase_labels)-1}")
         else:
             self.status_label.setText("No segment selected. Click on plot first.")
+
     
     def save_current_file_corrections(self):
         if self.current_file_path and self.editable_phase_labels is not None:
             self.save_corrected_csv()
         else:
             self.status_label.setText("No current file or data to save.")
-
 
     def save_corrected_csv(self):
         if self.current_file_path is None or self.editable_phase_labels is None or self.current_t_w is None:
@@ -478,12 +522,11 @@ class GaitCorrectionApp(QMainWindow):
         
         original_phase_timestamps = self.current_t_w
         
-        # Align editable_phase_labels with original_phase_timestamps if lengths differ (should not happen if load_file_data is correct)
         if len(self.editable_phase_labels) != len(original_phase_timestamps):
-            print(f"Warning: Mismatch between editable_phase_labels ({len(self.editable_phase_labels)}) "
-                  f"and current_t_w ({len(original_phase_timestamps)}). Aligning by truncating/padding.")
+            print(f"Warning: Mismatch editable_phase_labels ({len(self.editable_phase_labels)}) "
+                  f"and current_t_w ({len(original_phase_timestamps)}). Aligning.")
             min_len = min(len(self.editable_phase_labels), len(original_phase_timestamps))
-            current_phase_labels_aligned = np.full(min_len, -1, dtype=int) # default unclassified
+            current_phase_labels_aligned = np.full(min_len, -1, dtype=int)
             current_phase_labels_aligned[:min(min_len, len(self.editable_phase_labels))] = self.editable_phase_labels[:min(min_len, len(self.editable_phase_labels))]
             original_phase_timestamps = original_phase_timestamps[:min_len]
             if min_len == 0:
@@ -504,43 +547,47 @@ class GaitCorrectionApp(QMainWindow):
         target_time_vector = None
         resampled_phases = None
 
+        # --- Determine which joints to include based on checkbox state ---
+        joints_to_include_in_csv = []
+        if self.cb_knee_l.isChecked():
+            joints_to_include_in_csv.append('knee_angle_l')
+        if self.cb_knee_r.isChecked():
+            joints_to_include_in_csv.append('knee_angle_r')
+        
+        if not joints_to_include_in_csv and os.path.exists(mot_path):
+             print("No joint angles selected for output, but MOT file exists. Will only save time and phase.")
+        elif not joints_to_include_in_csv and not os.path.exists(mot_path):
+             print("No joint angles selected and MOT file not found. Will only save time and phase from IMU processing.")
+
+
         if os.path.exists(mot_path):
             try:
                 dfmot = pd.read_csv(mot_path, skiprows=6, sep='\t')
                 if 'time' not in dfmot.columns or len(dfmot['time']) == 0:
-                    print(f"Warning: MOT file {mot_path} is missing 'time' column or time data is empty. Falling back to synthetic time.")
-                    # Fallback to synthetic time logic (will be handled by the 'else' of 'if os.path.exists(mot_path)' effectively if we set mot_path to non-existent)
-                    # For clarity, handle this explicitly or set a flag to use synthetic time
-                    raise FileNotFoundError("MOT time column missing or empty") # Trigger fallback
+                    raise FileNotFoundError("MOT time column missing or empty")
                 
                 target_time_vector = dfmot['time'].values
                 print(f"Using time vector from MOT file: {len(target_time_vector)} points.")
 
-                # Resample phase labels to target_time_vector (50Hz from MOT)
                 if len(original_phase_timestamps) == 1:
                     resampled_phases = np.full_like(target_time_vector, current_phase_labels_aligned[0], dtype=int)
                 else:
-                    # Ensure original_phase_timestamps are sorted for interp1d
                     sort_indices = np.argsort(original_phase_timestamps)
                     sorted_original_timestamps = original_phase_timestamps[sort_indices]
                     sorted_original_labels = current_phase_labels_aligned[sort_indices]
-
                     phase_interpolator = interp1d(
-                        sorted_original_timestamps,
-                        sorted_original_labels,
-                        kind='nearest',
-                        bounds_error=False,
-                        fill_value=(sorted_original_labels[0], sorted_original_labels[-1])
+                        sorted_original_timestamps, sorted_original_labels, kind='nearest',
+                        bounds_error=False, fill_value=(sorted_original_labels[0], sorted_original_labels[-1])
                     )
                     resampled_phases = phase_interpolator(target_time_vector).astype(int)
                 
                 output_df_data = {'time': target_time_vector, 'phase': resampled_phases}
                 
-                # Add joint angles
-                for joint_name_template in gal.JOINTS:
+                # Add selected joint angles
+                for joint_name_to_save in joints_to_include_in_csv:
                     actual_col_name_in_dfmot = None
                     for col_dfmot in dfmot.columns:
-                        if col_dfmot.lower() == joint_name_template.lower(): # Ignoring case for joint name
+                        if col_dfmot.lower() == joint_name_to_save.lower():
                             actual_col_name_in_dfmot = col_dfmot
                             break
                     
@@ -548,38 +595,34 @@ class GaitCorrectionApp(QMainWindow):
                         joint_angle_data = gal.fp.getJointAngleMotAsNP(dfmot, actual_col_name_in_dfmot)
                         if len(joint_angle_data) != len(target_time_vector):
                             print(f"Warning: Joint {actual_col_name_in_dfmot} length ({len(joint_angle_data)}) "
-                                  f"differs from MOT time ({len(target_time_vector)}). Aligning by padding/truncating.")
+                                  f"differs from MOT time ({len(target_time_vector)}). Aligning.")
                             if len(joint_angle_data) > len(target_time_vector):
-                                output_df_data[joint_name_template] = joint_angle_data[:len(target_time_vector)]
+                                output_df_data[joint_name_to_save] = joint_angle_data[:len(target_time_vector)] # Use joint_name_to_save as key
                             else:
                                 padded_angles = np.pad(joint_angle_data, (0, len(target_time_vector) - len(joint_angle_data)), 'edge')
-                                output_df_data[joint_name_template] = padded_angles
+                                output_df_data[joint_name_to_save] = padded_angles
                         else:
-                            output_df_data[joint_name_template] = joint_angle_data
+                            output_df_data[joint_name_to_save] = joint_angle_data
                     else:
-                        print(f"Warning: Joint {joint_name_template} not found in {mot_path}. Filling with NaNs.")
-                        output_df_data[joint_name_template] = np.full(len(target_time_vector), np.nan)
+                        print(f"Warning: Joint {joint_name_to_save} not found in {mot_path}. Filling with NaNs.")
+                        output_df_data[joint_name_to_save] = np.full(len(target_time_vector), np.nan)
 
             except Exception as e:
-                print(f"Error processing .mot file {mot_path}: {e}. Will attempt to save phases with synthetic 50Hz time.")
-                # Force fallback to synthetic time generation if MOT processing fails
-                target_time_vector = None # Signal that MOT time is unavailable
+                print(f"Error processing .mot file {mot_path}: {e}. Attempting to save phases with synthetic 50Hz time.")
+                target_time_vector = None 
         
-        if target_time_vector is None: # Fallback if MOT not found, or error reading MOT's time
-            print(f"Warning: MOT file not found at {mot_path} or MOT time invalid. Resampling phases to a synthetic 50Hz grid.")
+        if target_time_vector is None: 
+            print(f"MOT file not found or invalid ({mot_path}). Resampling phases to synthetic 50Hz grid from IMU time.")
             
             t_start = original_phase_timestamps[0]
             t_end = original_phase_timestamps[-1]
-            if t_end < t_start: t_end = t_start # Ensure non-negative duration
+            if t_end <= t_start: t_end = t_start + gal.dt # Ensure non-zero duration for at least one sample
 
-            # +1 to include both start and end if t_end-t_start is a multiple of 1/fs
             num_target_samples = int(np.round((t_end - t_start) * gal.fs)) + 1 
             if num_target_samples <= 0: num_target_samples = 1
             
-            # Create time vector ensuring exact sample rate
             target_time_vector = t_start + np.arange(num_target_samples) / gal.fs
-            print(f"Generated synthetic 50Hz time vector: {len(target_time_vector)} points from {t_start:.2f}s to {target_time_vector[-1]:.2f}s.")
-
+            print(f"Generated synthetic 50Hz time vector: {len(target_time_vector)} points from {t_start:.3f}s to {target_time_vector[-1]:.3f}s.")
 
             if len(original_phase_timestamps) == 1:
                 resampled_phases = np.full_like(target_time_vector, current_phase_labels_aligned[0], dtype=int)
@@ -587,33 +630,36 @@ class GaitCorrectionApp(QMainWindow):
                 sort_indices = np.argsort(original_phase_timestamps)
                 sorted_original_timestamps = original_phase_timestamps[sort_indices]
                 sorted_original_labels = current_phase_labels_aligned[sort_indices]
-
                 phase_interpolator = interp1d(
-                    sorted_original_timestamps,
-                    sorted_original_labels,
-                    kind='nearest',
-                    bounds_error=False,
-                    fill_value=(sorted_original_labels[0], sorted_original_labels[-1])
+                    sorted_original_timestamps, sorted_original_labels, kind='nearest',
+                    bounds_error=False, fill_value=(sorted_original_labels[0], sorted_original_labels[-1])
                 )
                 resampled_phases = phase_interpolator(target_time_vector).astype(int)
             
             output_df_data = {'time': target_time_vector, 'phase': resampled_phases}
-            # No joint angles to add if MOT file was not processed successfully
+            # No joint angles added here as MOT was not available/processed.
+            if joints_to_include_in_csv:
+                print("Warning: MOT file was not processed, so selected joint angles cannot be included in the output CSV.")
+
 
         output_df = pd.DataFrame(output_df_data)
         
-        # Final check for consistent column lengths (should be guaranteed by now if logic is correct)
-        expected_len = len(output_df['time'])
+        expected_len = len(output_df['time']) if 'time' in output_df else 0
+        if expected_len == 0 and len(output_df.columns) > 0: # if time is missing but other cols exist
+            first_col_len = len(output_df[output_df.columns[0]])
+            print(f"Warning: 'time' column missing or empty in output_df. Using length of first column ({first_col_len}) as expected_len.")
+            expected_len = first_col_len
+        
         for col, data_col in output_df.items():
             if len(data_col) != expected_len:
-                print(f"Critical Error: Column '{col}' has length {len(data_col)}, expected {expected_len}. Dataframe inconsistent before saving.")
-                # Pad/truncate as a last resort, though this indicates a flaw in earlier logic
+                print(f"Critical Error: Column '{col}' has length {len(data_col)}, expected {expected_len}. Dataframe inconsistent.")
+                # Attempt to fix by padding/truncating
                 if len(data_col) > expected_len:
                     output_df[col] = data_col[:expected_len]
                 else:
-                    # Create a padded series/array
-                    padding = np.full(expected_len - len(data_col), np.nan if data_col.dtype.kind == 'f' else -1) # Use -1 for phases
-                    output_df[col] = pd.Series(np.concatenate([data_col.values, padding]))
+                    padding_val = np.nan if data_col.dtype.kind == 'f' else -1 if col == 'phase' else 0
+                    padding = np.full(expected_len - len(data_col), padding_val, dtype=data_col.dtype)
+                    output_df[col] = pd.Series(np.concatenate([data_col.values, padding]), name=col)
 
 
         output_subject_dir = os.path.join(GUI_OUTPUT_DIR, subject_id_from_path)
@@ -622,15 +668,16 @@ class GaitCorrectionApp(QMainWindow):
         output_filepath_csv = os.path.join(output_subject_dir, output_filename_csv)
         
         try:
-            output_df.to_csv(output_filepath_csv, index=False, float_format='%.5f') # Save with precision
+            output_df.to_csv(output_filepath_csv, index=False, float_format='%.5f')
             self.status_label.setText(f"Saved: {output_filename_csv}")
-            print(f"Saved corrected data to {output_filepath_csv} with {len(output_df)} rows.")
+            print(f"Saved corrected data to {output_filepath_csv} with {len(output_df)} rows and columns: {list(output_df.columns)}")
             self.data_is_dirty = False
         except Exception as e:
             self.status_label.setText(f"Error saving CSV: {e}")
             print(f"Error saving CSV {output_filepath_csv}: {e}")
 
     def next_file_auto_save(self):
+        # ... (identical to your existing next_file_auto_save) ...
         if self.data_is_dirty and self.current_file_path:
             self.save_corrected_csv()
         if self.current_file_index < len(self.raw_file_paths) - 1:
@@ -639,6 +686,7 @@ class GaitCorrectionApp(QMainWindow):
             self.status_label.setText("Last file reached.")
 
     def prev_file_auto_save(self):
+        # ... (identical to your existing prev_file_auto_save) ...
         if self.data_is_dirty and self.current_file_path:
             self.save_corrected_csv()
         if self.current_file_index > 0:
@@ -646,7 +694,9 @@ class GaitCorrectionApp(QMainWindow):
         else:
             self.status_label.setText("First file reached.")
 
+
     def closeEvent(self, event):
+        # ... (identical to your existing closeEvent) ...
         if self.data_is_dirty:
             reply = QMessageBox.question(self, 'Unsaved Changes',
                                          "You have unsaved changes. Save before quitting?",
@@ -657,7 +707,7 @@ class GaitCorrectionApp(QMainWindow):
                 event.accept()
             elif reply == QMessageBox.StandardButton.Discard:
                 event.accept()
-            else:
+            else: # Cancel
                 event.ignore()
                 return
         else:
