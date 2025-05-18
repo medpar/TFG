@@ -306,13 +306,13 @@ class GaitCorrectionApp(QMainWindow):
         event_marker_size = 6
         if self.current_mid_swing:
             valid_ms = [idx for idx in self.current_mid_swing if 0 <= idx < len(plot_t) and 0 <= idx < len(plot_omega)]
-            if valid_ms: self.ax.plot(plot_t[valid_ms], plot_omega[valid_ms], '.', color='red', markersize=event_marker_size, alpha=0.7, label='Mid-Swing')
+            if valid_ms: self.ax.plot(plot_t[valid_ms], plot_omega[valid_ms], 'o', color='red', markersize=event_marker_size, alpha=0.7, label='Mid-Swing')
         if self.current_hs:
             valid_hs = [idx for idx in self.current_hs if 0 <= idx < len(plot_t) and 0 <= idx < len(plot_omega)]
             if valid_hs: self.ax.plot(plot_t[valid_hs], plot_omega[valid_hs], 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike')
         if self.current_to:
             valid_to = [idx for idx in self.current_to if 0 <= idx < len(plot_t) and 0 <= idx < len(plot_omega)]
-            if valid_to: self.ax.plot(plot_t[valid_to], plot_omega[valid_to], 's', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off')
+            if valid_to: self.ax.plot(plot_t[valid_to], plot_omega[valid_to], 'o', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off')
 
         self.ax.set_title(f'Interactive Correction - {os.path.basename(self.current_file_path)}')
         self.ax.set_xlabel('Time (s)')
