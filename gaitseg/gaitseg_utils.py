@@ -371,7 +371,6 @@ def process_file(file_path, show_original=True, show_filtered=True, show_event_d
         good_leg = sinh_val_leg > 1e-8
         axis_leg[good_leg] = dq_leg[good_leg, 1:] / sinh_val_leg[good_leg, None]
 
-        # Determine dt for this specific segment if possible
         current_dt_leg = dt 
         if len(t_relative_leg) > 1:
             actual_dts_leg = np.diff(t_relative_leg)

@@ -1,11 +1,10 @@
-# config.py
+# model/config.py
 import torch
 import os
 
 # --- Data Configuration ---
 BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
-#OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests/" 
-OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests/"
+OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests_BiLSTM/" # New output
 SUBJECT_DIRS_PATTERN = "S*"                         
 TRIAL_FILE_PATTERN = "S*_A01_T*_corrected.csv"     
 
@@ -16,45 +15,61 @@ NUM_FEATURES = len(FEATURE_COLUMNS)
 NUM_CLASSES = 3                                     # 0: Swing, 1: Stance, 2: Turn 
 
 # --- Preprocessing ---
-SEQUENCE_LENGTH = 100  # e.g., 100 timesteps (2 seconds at 50Hz)
-NORMALIZATION_METHOD = "standard" # "standard" or "minmax" or None
+SEQUENCE_LENGTH = 100 
+NORMALIZATION_METHOD = "standard" 
+
+# --- Loss Configuration ---
+USE_WEIGHTED_LOSS = True 
+
+# --- Optimization Metric (for Optuna and Early Stopping/Best Model) ---
+# Options: 'loss' (minimize validation loss) or 'f1' (maximize validation F1 score)
+OPTIMIZE_METRIC = 'f1' 
+# For Optuna: Optuna reports this metric to its pruner.
+# If OPTIMIZE_METRIC is 'f1', Optuna's study direction should be 'maximize'.
+# If OPTIMIZE_METRIC is 'loss', Optuna's study direction should be 'minimize'.
+OPTIMIZE_METRIC_FOR_OPTUNA = 'f1' # This tells train_loop what to report to Optuna pruner
 
 # --- Model Hyperparameters ---
-MODEL_TYPE = "LSTM" # Could be "BiLSTM" or other variants if you extend
-LSTM_HIDDEN_SIZE = 128
-NUM_LSTM_LAYERS = 2
-LSTM_DROPOUT = 0.3 # Dropout between LSTM layers if num_layers > 1
-BIDIRECTIONAL_LSTM = True   # We use BiLSTM
-LINEAR_DROPOUT = 0.4 # Dropout before the final classification layer
+MODEL_TYPE = "LSTM"
+LSTM_HIDDEN_SIZE = 64       
+NUM_LSTM_LAYERS = 2  
+LSTM_DROPOUT = 0.5          
+BIDIRECTIONAL_LSTM = True   
+LINEAR_DROPOUT = 0.3       
 
 # --- Training Hyperparameters ---
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001     
 BATCH_SIZE = 64
-NUM_EPOCHS = 100 # Max epochs; early stopping will be used
-WEIGHT_DECAY = 1e-5 # For AdamW optimizer
+NUM_EPOCHS = 100 
+WEIGHT_DECAY = 0.0003# Let Optuna explore from here       
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
-# --- Cross-Validation & Splitting (subject-wise) ---
-K_FOLDS = 2 # Number of folds for cross-validation. Set to 1 for a single train/val/test split.
-TEST_SPLIT_RATIO = 0.15 # Proportion of subjects for the final test set (if K_FOLDS=1)
-VALIDATION_SPLIT_RATIO = 0.15 # Proportion of subjects for validation (if K_FOLDS=1, taken from training set)
+# --- Cross-Validation & Splitting ---
+K_FOLDS = 2 
 RANDOM_SEED = 42
 
 # --- Early Stopping ---
-EARLY_STOPPING_PATIENCE = 10
-EARLY_STOPPING_DELTA = 0.001 # Minimum change to qualify as an improvement
+# EARLY_STOPPING_PATIENCE and EARLY_STOPPING_DELTA will now apply to OPTIMIZE_METRIC
+EARLY_STOPPING_PATIENCE = 12 
+EARLY_STOPPING_DELTA = 0.0005 # For F1, a small change is significant. For loss, can be larger. Adjust if optimizing loss.
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 128
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "trial12_best_model_fold0.pth")
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold0.pth") 
 
 # --- Plotting ---
-PLOT_MAX_SAMPLES_INFERENCE = 20000 # Pongo un valor muy alto para que no me limite los datos
+PLOT_MAX_SAMPLES_INFERENCE = 20000 
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+if K_FOLDS <= 1:
+    TEST_SPLIT_RATIO = 0.15 
+    VALIDATION_SPLIT_RATIO = 0.15
+else:
+    TEST_SPLIT_RATIO = None
+    VALIDATION_SPLIT_RATIO = None
+
 if __name__ == '__main__':
     print(f"Configuration loaded.")
-    print(f"Device: {DEVICE}")
-    print(f"Base Data Directory: {BASE_DATA_DIR}")
-    print(f"Output Directory: {OUTPUT_DIR}")
+    print(f"Optimizing for: {OPTIMIZE_METRIC}")
+    print(f"Using Weighted Loss: {USE_WEIGHTED_LOSS}")
