@@ -4,7 +4,7 @@ import os
 
 # --- Data Configuration ---
 BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
-OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests_BiLSTM/" # New output
+OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/inference/" # New output
 SUBJECT_DIRS_PATTERN = "S*"                         
 TRIAL_FILE_PATTERN = "S*_A01_T*_corrected.csv"     
 
@@ -15,7 +15,7 @@ NUM_FEATURES = len(FEATURE_COLUMNS)
 NUM_CLASSES = 3                                     # 0: Swing, 1: Stance, 2: Turn 
 
 # --- Preprocessing ---
-SEQUENCE_LENGTH = 100 
+SEQUENCE_LENGTH = 125 
 NORMALIZATION_METHOD = "standard" 
 
 # --- Loss Configuration ---
@@ -30,32 +30,33 @@ OPTIMIZE_METRIC = 'f1'
 OPTIMIZE_METRIC_FOR_OPTUNA = 'f1' # This tells train_loop what to report to Optuna pruner
 
 # --- Model Hyperparameters ---
-MODEL_TYPE = "LSTM"
-LSTM_HIDDEN_SIZE = 64       
-NUM_LSTM_LAYERS = 2  
+MODEL_TYPE = "BiLSTM"
+LSTM_HIDDEN_SIZE = 128       
+NUM_LSTM_LAYERS = 1  
 LSTM_DROPOUT = 0.5          
 BIDIRECTIONAL_LSTM = True   
-LINEAR_DROPOUT = 0.3       
+LINEAR_DROPOUT = 0.5       
 
 # --- Training Hyperparameters ---
-LEARNING_RATE = 0.0001     
+LEARNING_RATE = 0.0001757600399129188  
 BATCH_SIZE = 64
 NUM_EPOCHS = 100 
-WEIGHT_DECAY = 0.0003# Let Optuna explore from here       
+WEIGHT_DECAY = 0.00010510373125205576
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 # --- Cross-Validation & Splitting ---
-K_FOLDS = 2 
+K_FOLDS = 5 
 RANDOM_SEED = 42
 
 # --- Early Stopping ---
 # EARLY_STOPPING_PATIENCE and EARLY_STOPPING_DELTA will now apply to OPTIMIZE_METRIC
-EARLY_STOPPING_PATIENCE = 12 
+EARLY_STOPPING_PATIENCE = 20 
 EARLY_STOPPING_DELTA = 0.0005 # For F1, a small change is significant. For loss, can be larger. Adjust if optimizing loss.
 
 # --- Inference ---
-INFERENCE_BATCH_SIZE = 128
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold0.pth") 
+INFERENCE_BATCH_SIZE = 64
+# Meto un dir distinto para la inferencia
+DEFAULT_MODEL_PATH = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/inference/best_model_fold0.pth"
 
 # --- Plotting ---
 PLOT_MAX_SAMPLES_INFERENCE = 20000 

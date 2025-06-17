@@ -62,6 +62,7 @@ def main_train_loop(fold_num=None, optuna_trial=None):
         if fold_num is None: raise ValueError("fold_num required for CV.")
         train_loader, val_loader, scaler, class_weights = data_loader.get_data_loaders(fold_num=fold_num)
     else:
+        # get_data_loaders for single split now returns 5 values (including test_loader and weights)
         train_loader, val_loader, _, scaler, class_weights = data_loader.get_data_loaders()
     
     if config.USE_WEIGHTED_LOSS and class_weights is not None:
@@ -145,8 +146,6 @@ def main_train_loop(fold_num=None, optuna_trial=None):
             epochs_no_improve += 1
 
         if optuna_trial:
-            # Optuna usually minimizes. If we maximize F1, report -F1 or set study direction to "maximize".
-            # Here, we'll return F1 directly and set Optuna study direction to "maximize".
             optuna_trial.report(val_f1 if config.OPTIMIZE_METRIC_FOR_OPTUNA == 'f1' else val_loss, epoch)
             if optuna_trial.should_prune():
                 print(f"Optuna Trial {optuna_trial.number} pruned at epoch {epoch+1}.")
@@ -161,7 +160,7 @@ def main_train_loop(fold_num=None, optuna_trial=None):
     utils.plot_training_history(history, fold_num=fold_num, trial_num=optuna_trial.number if optuna_trial else None)
 
     best_model_path = os.path.join(config.OUTPUT_DIR, best_model_filename)
-    metrics_from_best_model_eval = final_metrics_for_log # Use metrics from the epoch that gave the best objective
+    metrics_from_best_model_eval = final_metrics_for_log 
     eval_model_instance = model 
 
     if os.path.exists(best_model_path):
@@ -174,24 +173,19 @@ def main_train_loop(fold_num=None, optuna_trial=None):
         checkpoint = utils.load_checkpoint(best_model_path, eval_model_instance, optimizer=None)
         
         if checkpoint:
-            # Stored metrics in 'final_metrics' should reflect the best epoch based on OPTIMIZE_METRIC
             if 'final_metrics' in checkpoint:
                  metrics_from_best_model_eval = checkpoint['final_metrics']
             
             print("\n--- Final Validation Set Evaluation (using loaded best model state) ---")
-            # Re-evaluate to get fresh confusion matrix data
             val_loss_eval, val_acc_eval, val_metrics_dict_eval, val_targets_flat, val_preds_flat = validate_epoch(eval_model_instance, val_loader, criterion, config.DEVICE)
             print(f"Eval Best Model - Val Loss: {val_loss_eval:.4f}, Val Acc: {val_acc_eval:.4f}, Val F1 (weighted): {val_metrics_dict_eval['f1_score']:.4f}")
             
-            # Update the log with these re-evaluated metrics for consistency, especially if some were not stored precisely before
             metrics_from_best_model_eval['best_epoch_val_loss'] = val_loss_eval
             metrics_from_best_model_eval['best_epoch_val_acc'] = val_acc_eval
             metrics_from_best_model_eval['best_epoch_val_f1'] = val_metrics_dict_eval['f1_score']
-            # Train metrics are harder to get from just re-evaluation, rely on what was saved in checkpoint if available
             metrics_from_best_model_eval.setdefault('best_epoch_train_loss', np.nan)
             metrics_from_best_model_eval.setdefault('best_epoch_train_acc', np.nan)
             metrics_from_best_model_eval.setdefault('best_epoch_num', checkpoint.get('epoch',0))
-
 
             class_names = [f"Phase {i}" for i in range(config.NUM_CLASSES)]
             utils.plot_confusion_matrix_custom(val_targets_flat, val_preds_flat, class_names, 
@@ -199,7 +193,6 @@ def main_train_loop(fold_num=None, optuna_trial=None):
                                                trial_num=optuna_trial.number if optuna_trial else None)
         else:
             print("Could not load best model checkpoint. Using last model state metrics.")
-            # Fallback to last epoch metrics if checkpoint load failed
             if history['val_loss']:
                 metrics_from_best_model_eval = {
                     'best_epoch_train_loss': history['train_loss'][-1], 'best_epoch_train_acc': history['train_acc'][-1],
@@ -208,7 +201,6 @@ def main_train_loop(fold_num=None, optuna_trial=None):
                 }
     else:
         print(f"Best model file {best_model_path} not found.")
-        # Fallback to last epoch metrics if no best model file
         if history['val_loss']:
              metrics_from_best_model_eval = {key: history[key.replace('best_epoch_', '')][-1] for key in ['best_epoch_train_loss', 'best_epoch_train_acc', 'best_epoch_val_loss', 'best_epoch_val_acc', 'best_epoch_val_f1']}
              metrics_from_best_model_eval['best_epoch_num'] = len(history['val_loss'])
@@ -216,11 +208,31 @@ def main_train_loop(fold_num=None, optuna_trial=None):
 
     final_model_to_return = eval_model_instance if os.path.exists(best_model_path) and checkpoint else model
     
-    # Determine the metric value to return to Optuna
     optuna_metric_to_return = 0.0
     if config.OPTIMIZE_METRIC_FOR_OPTUNA == 'f1':
-        optuna_metric_to_return = metrics_from_best_model_eval.get('best_epoch_val_f1', 0.0) # Default to 0 if key missing
-    else: # Default to val_loss
+        optuna_metric_to_return = metrics_from_best_model_eval.get('best_epoch_val_f1', 0.0)
+    else:
         optuna_metric_to_return = metrics_from_best_model_eval.get('best_epoch_val_loss', float('inf'))
 
     return final_model_to_return, scaler, optuna_metric_to_return, metrics_from_best_model_eval
+
+
+if __name__ == '__main__':
+    np.random.seed(config.RANDOM_SEED)
+    torch.manual_seed(config.RANDOM_SEED)
+    if config.DEVICE == "cuda":
+        torch.cuda.manual_seed_all(config.RANDOM_SEED)
+    elif config.DEVICE == "mps":
+        pass 
+
+    if config.K_FOLDS > 1:
+        print(f"Starting {config.K_FOLDS}-Fold Cross-Validation Training...")
+        for i in range(config.K_FOLDS):
+            print(f"\n===== FOLD {i+1}/{config.K_FOLDS} =====")
+            # FIX: Unpack all four returned values, even if some are not used.
+            _, _, _, _ = main_train_loop(fold_num=i) 
+        print("\nCross-validation finished.")
+    else:
+        print("Starting Single Train/Validation/Test Training...")
+        # FIX: Unpack all four returned values for the single training run as well.
+        main_train_loop()
