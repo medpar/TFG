@@ -4,7 +4,13 @@ import os
 
 # --- Data Configuration ---
 BASE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
-OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/inference/" # New output
+
+# --- Output Directories ---
+# OUTPUT_DIR is for training artifacts (checkpoints, training plots, etc.)
+OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/train/" 
+# INFERENCE_OUTPUT_DIR is for inference results (prediction CSVs, inference plots, etc.)
+INFERENCE_OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/inference/" 
+
 SUBJECT_DIRS_PATTERN = "S*"                         
 TRIAL_FILE_PATTERN = "S*_A01_T*_corrected.csv"     
 
@@ -15,7 +21,7 @@ NUM_FEATURES = len(FEATURE_COLUMNS)
 NUM_CLASSES = 3                                     # 0: Swing, 1: Stance, 2: Turn 
 
 # --- Preprocessing ---
-SEQUENCE_LENGTH = 125 
+SEQUENCE_LENGTH = 75                   # TAMAÑO VENTANA
 NORMALIZATION_METHOD = "standard" 
 
 # --- Loss Configuration ---
@@ -55,13 +61,15 @@ EARLY_STOPPING_DELTA = 0.0005 # For F1, a small change is significant. For loss,
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 64
-# Meto un dir distinto para la inferencia
-DEFAULT_MODEL_PATH = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/inference/best_model_fold0.pth"
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold0.pth") 
 
 # --- Plotting ---
 PLOT_MAX_SAMPLES_INFERENCE = 20000 
 
+# Create directories if they don't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(INFERENCE_OUTPUT_DIR, exist_ok=True)
+
 
 if K_FOLDS <= 1:
     TEST_SPLIT_RATIO = 0.15 
@@ -74,3 +82,5 @@ if __name__ == '__main__':
     print(f"Configuration loaded.")
     print(f"Optimizing for: {OPTIMIZE_METRIC}")
     print(f"Using Weighted Loss: {USE_WEIGHTED_LOSS}")
+    print(f"Training Output Directory: {OUTPUT_DIR}")
+    print(f"Inference Output Directory: {INFERENCE_OUTPUT_DIR}")
