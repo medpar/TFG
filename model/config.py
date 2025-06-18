@@ -51,7 +51,7 @@ WEIGHT_DECAY = 0.00010510373125205576
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 # --- Cross-Validation & Splitting ---
-K_FOLDS = 5 
+K_FOLDS = 1 
 RANDOM_SEED = 42
 
 # --- Early Stopping ---
