@@ -7,23 +7,26 @@ import config_30Hz as config # Use 30Hz config
 import os
 import sys
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PARENT_DIR = os.path.dirname(CURRENT_DIR)
-GAITSEG_DIR = os.path.join(PARENT_DIR, "gaitseg")   
+# --- FIX FOR IMPORTING SIBLING DIRECTORY ---
+CURRENT_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_SCRIPT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.append(PARENT_DIR)
+# --- END FIX ---
 
 try:
-    import gaitseg_utils as gal
+    from gaitseg import gaitseg_utils as gal
 except ImportError:
+    print("Warning: Could not import 'gaitseg_utils'.")
     gal = None
 
+# This global will be updated by train/inference scripts to direct plot outputs
 OUTPUT_PLOTS_DIR = os.path.join(config.TRAIN_OUTPUT_DIR, "output_plots")
 os.makedirs(OUTPUT_PLOTS_DIR, exist_ok=True)
 
-# All functions (plot_training_history, calculate_metrics, etc.) are identical to your
-# previous utils.py, but now they import from config_30Hz.
-# For brevity, I'll show one function to demonstrate the pattern.
 
 def plot_training_history(history, fold_num=None, trial_num=None):
+    # ... (This function remains unchanged) ...
     fig, axs = plt.subplots(1, 2, figsize=(15, 5))
     title_parts = []
     if trial_num is not None: title_parts.append(f"Trial {trial_num}")
@@ -47,6 +50,7 @@ def plot_training_history(history, fold_num=None, trial_num=None):
     plt.close(fig)
 
 def calculate_metrics(y_true_flat, y_pred_flat, average='weighted'):
+    # ... (This function remains unchanged) ...
     accuracy = accuracy_score(y_true_flat, y_pred_flat)
     precision = precision_score(y_true_flat, y_pred_flat, average=average, zero_division=0)
     recall = recall_score(y_true_flat, y_pred_flat, average=average, zero_division=0)
@@ -54,9 +58,13 @@ def calculate_metrics(y_true_flat, y_pred_flat, average='weighted'):
     return {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f1_score': f1}
 
 def plot_confusion_matrix_custom(y_true_flat, y_pred_flat, class_names, title='Confusion Matrix', fold_num=None, trial_num=None):
+    # ... (This function remains unchanged) ...
+    if not isinstance(y_true_flat, list): y_true_flat = list(y_true_flat)
+    if not isinstance(y_pred_flat, list): y_pred_flat = list(y_pred_flat)
     if not y_true_flat or not y_pred_flat: return
     valid_labels = np.arange(len(class_names))
     y_true_filtered = [l for l in y_true_flat if l in valid_labels]
+    # Filter predictions based on whether the corresponding true label was valid
     y_pred_filtered = [p for i, p in enumerate(y_pred_flat) if y_true_flat[i] in valid_labels]
     if not y_true_filtered or not y_pred_filtered: return
     cm = confusion_matrix(y_true_filtered, y_pred_filtered, labels=valid_labels)
@@ -75,6 +83,7 @@ def plot_confusion_matrix_custom(y_true_flat, y_pred_flat, class_names, title='C
     plt.close(fig)
 
 def save_checkpoint(state, is_best, filename="checkpoint.pth", best_filename="best_model.pth", output_dir=None):
+    # ... (This function remains unchanged) ...
     if output_dir is None: output_dir = config.TRAIN_OUTPUT_DIR
     filepath = os.path.join(output_dir, filename)
     torch.save(state, filepath)
@@ -84,6 +93,7 @@ def save_checkpoint(state, is_best, filename="checkpoint.pth", best_filename="be
         print(f"Saved new best 30Hz model to {best_filepath} (Epoch {state.get('epoch', 'N/A')})")
 
 def load_checkpoint(filepath, model, optimizer=None, device=config.DEVICE):
+    # ... (This function remains unchanged) ...
     if not os.path.exists(filepath):
         print(f"Warning: Checkpoint file not found at {filepath}"); return None
     checkpoint = torch.load(filepath, map_location=device)
@@ -93,19 +103,48 @@ def load_checkpoint(filepath, model, optimizer=None, device=config.DEVICE):
     return checkpoint
 
 def plot_model_predictions_vs_true_phases(timestamps, true_phases, predicted_phases, title_suffix="", trial_num=None):
-    if len(timestamps) == 0: return
+    # FIX: Ensure plot is created even if true_phases is None, and add a check for valid data lengths.
+    if timestamps is None or len(timestamps) == 0:
+        print(f"No data to plot for true vs predicted phases {title_suffix}.")
+        return
+
     n = min(config.PLOT_MAX_SAMPLES_INFERENCE, len(timestamps))
-    time_plot, predicted_phases_plot = timestamps[:n], predicted_phases[:n]
-    true_phases_plot = true_phases[:n] if true_phases is not None and len(true_phases) > 0 else None
-    fig, ax = plt.subplots(figsize=(15, 5)); ax.set_xlabel('Time (s)'); ax.set_ylabel('Gait Phase')
-    if true_phases_plot is not None: ax.plot(time_plot, true_phases_plot, color='tab:blue', linestyle='-', marker='.', label='True Phases (GUI)')
-    ax.plot(time_plot, predicted_phases_plot, color='tab:red', linestyle='--', marker='x', label='Predicted Phases (Model)'); ax.set_yticks(np.arange(-1, config.NUM_CLASSES +1)); ax.legend(); ax.grid(True, linestyle=':')
-    full_title = f"Model Predicted Gait Phases vs True {title_suffix}"; plt.title(full_title); plt.tight_layout()
-    plot_filename_base = f"model_vs_true_phases{title_suffix.replace(' ', '_').lower()}.png"
-    global OUTPUT_PLOTS_DIR; plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename_base)); plt.close(fig)
+    time_plot = timestamps[:n]
+    predicted_phases_plot = predicted_phases[:n] if predicted_phases is not None else None
+    true_phases_plot = true_phases[:n] if true_phases is not None else None
+
+    fig, ax = plt.subplots(figsize=(15, 5))
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Gait Phase')
+    
+    # Plot true phases if available and aligned
+    if true_phases_plot is not None and len(true_phases_plot) == len(time_plot):
+        ax.plot(time_plot, true_phases_plot, color='tab:blue', linestyle='-', marker='.', markersize=4, alpha=0.7, label='True Phases (from IMU)')
+    
+    # Plot predicted phases if available
+    if predicted_phases_plot is not None and len(predicted_phases_plot) == len(time_plot):
+        ax.plot(time_plot, predicted_phases_plot, color='tab:red', linestyle='--', marker='x', markersize=4, alpha=0.7, label='Predicted Phases (Model)')
+    
+    ax.set_yticks(np.arange(-1, config.NUM_CLASSES + 1))
+    ax.set_yticklabels([f"Phase {i}" for i in np.arange(-1, config.NUM_CLASSES + 1)])
+    ax.legend()
+    ax.grid(True, linestyle=':')
+    
+    full_title = f"Model Predicted vs. True Phases{title_suffix}"
+    if trial_num is not None: full_title = f"Trial {trial_num}: " + full_title
+    plt.title(full_title)
+    plt.tight_layout()
+    
+    plot_filename_base = f"model_vs_true_phases{title_suffix.replace(' ', '_').replace('(', '').replace(')', '').lower()}.png"
+    global OUTPUT_PLOTS_DIR
+    plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename_base))
+    print(f"Saved model vs true phases plot to {os.path.join(OUTPUT_PLOTS_DIR, plot_filename_base)}")
+    plt.close(fig)
 
 def plot_model_predictions_vs_angular_velocity(timestamps_csv, predicted_phases_csv, raw_imu_filepath, title_suffix="", trial_num=None):
-    if gal is None: return
+    # ... (This function remains unchanged) ...
+    if gal is None: 
+        print("Skipping plot_model_predictions_vs_angular_velocity: gaitseg_utils not imported."); return
     t_plot_master = timestamps_csv
     results_from_raw = gal.compute_velocity_and_events(raw_imu_filepath)
     t_imu_raw, omega_imu_raw = (results_from_raw[0], results_from_raw[2]) if results_from_raw and results_from_raw[0] is not None else (None, None)
