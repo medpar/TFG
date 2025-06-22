@@ -46,12 +46,12 @@ LINEAR_DROPOUT = 0.5
 # --- Training Hyperparameters ---
 LEARNING_RATE = 0.0001757600399129188  
 BATCH_SIZE = 64
-NUM_EPOCHS = 100 
+NUM_EPOCHS = 75 
 WEIGHT_DECAY = 0.00010510373125205576
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 # --- Cross-Validation & Splitting ---
-K_FOLDS = 1 
+K_FOLDS = 3 
 RANDOM_SEED = 42
 
 # --- Early Stopping ---
@@ -61,7 +61,7 @@ EARLY_STOPPING_DELTA = 0.0005 # For F1, a small change is significant. For loss,
 
 # --- Inference ---
 INFERENCE_BATCH_SIZE = 64
-DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold0.pth") 
+DEFAULT_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model_fold1.pth") 
 
 # --- Plotting ---
 PLOT_MAX_SAMPLES_INFERENCE = 20000 

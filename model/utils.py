@@ -241,7 +241,7 @@ def plot_model_predictions_vs_angular_velocity(
     sensor_id_for_plot = gal.sensors[0] if hasattr(gal, 'LEG') and gal.LEG.upper() == 'L' else gal.sensors[1] if hasattr(gal, 'sensors') else "IMU"
     omega_color = gal.colors.get(sensor_id_for_plot, 'tab:grey') if hasattr(gal, 'colors') else 'tab:grey'
     ax1.plot(t_plot_master_sub, omega_plot_aligned_sub, color=omega_color, alpha=0.7, linewidth=1.5, label=f'Ang. Vel. ({sensor_id_for_plot})')
-    ax1.set_xlabel('Time (s) - from Prediction CSV'); ax1.set_ylabel('Angular Velocity (rad/s)', color='black'); ax1.tick_params(axis='y', labelcolor='black')
+    ax1.set_xlabel('Time (s)'); ax1.set_ylabel('Angular Velocity (rad/s)', color='black'); ax1.tick_params(axis='y', labelcolor='black')
 
     phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
     phase_legend_labels_map = {0: 'Stance (0)', 1: 'Swing (1)', 2: 'Turn (2)', -1: 'Unclassified (-1)'}
@@ -257,13 +257,13 @@ def plot_model_predictions_vs_angular_velocity(
                 if actual_seg_end_idx <= seg_start: continue
                 label_to_use_phase = None
                 if ph_val not in legend_phases_added:
-                    label_to_use_phase = phase_legend_labels_map.get(ph_val) + " (Model)"; legend_phases_added.add(ph_val)
+                    label_to_use_phase = phase_legend_labels_map.get(ph_val); legend_phases_added.add(ph_val)
                 time_start_span, time_end_span = t_plot_master_sub[seg_start], t_plot_master_sub[actual_seg_end_idx-1] + (gal.dt/2 if hasattr(gal, 'dt') else 0.01)
                 ax1.axvspan(time_start_span, time_end_span, color=color_val_phase, alpha=0.45, label=label_to_use_phase, zorder=-1)
     
-    if len(ms_event_times) > 0: ax1.plot(ms_event_times, ms_event_values, 'o', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing (raw IMU)')
-    if len(hs_event_times) > 0: ax1.plot(hs_event_times, hs_event_values, 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike (raw IMU)')
-    if len(to_event_times) > 0: ax1.plot(to_event_times, to_event_values, 'o', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off (raw IMU)')
+    if len(ms_event_times) > 0: ax1.plot(ms_event_times, ms_event_values, 'o', color='red', markersize=event_marker_size, alpha=0.8, label='Mid-Swing')
+    if len(hs_event_times) > 0: ax1.plot(hs_event_times, hs_event_values, 'o', color='magenta', markersize=event_marker_size, alpha=0.8, label='Heel Strike')
+    if len(to_event_times) > 0: ax1.plot(to_event_times, to_event_values, 'o', color='cyan', markersize=event_marker_size, alpha=0.8, label='Toe Off')
 
     full_title = f"Model Predicted Phases vs. IMU Angular Velocity {title_suffix}"
     if trial_num is not None: full_title = f"Trial {trial_num}: " + full_title

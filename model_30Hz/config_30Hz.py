@@ -12,12 +12,12 @@ TRAIN_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/gaitseg_corrected"
 TRAIN_TRIAL_PATTERN = "S*_A01_T*_corrected.csv"
 
 # For INFERENCE, we use the 30Hz data generated from video models.
-INFERENCE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/jointangles_motionagformer_dataset/"
+INFERENCE_DATA_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/jointangles_motionagformer"
 INFERENCE_TRIAL_PATTERN = "*.csv" # Or a more specific pattern if needed, e.g., "*_all_angles.csv"
 
 # --- Output Directories ---
 # A new base output directory for the 30Hz model's artifacts
-BASE_OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/tests_model_30Hz/"
+BASE_OUTPUT_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/model_30Hz/"
 # Subdirectories for training and inference artifacts
 TRAIN_OUTPUT_DIR = os.path.join(BASE_OUTPUT_DIR, "train") 
 INFERENCE_OUTPUT_DIR = os.path.join(BASE_OUTPUT_DIR, "inference") 
@@ -32,7 +32,7 @@ NUM_FEATURES = len(FEATURE_COLUMNS)
 NUM_CLASSES = 3  # 0: Swing, 1: Stance, 2: Turn 
 
 # --- Preprocessing ---
-SEQUENCE_LENGTH = 75                   # TAMAÑO VENTANA (This now corresponds to 75 / 30Hz = 2.5 seconds)
+SEQUENCE_LENGTH =  50                  # TAMAÑO VENTANA (This now corresponds to 75 / 30Hz = 2.5 seconds)
 NORMALIZATION_METHOD = "standard" 
 
 # --- Loss Configuration ---

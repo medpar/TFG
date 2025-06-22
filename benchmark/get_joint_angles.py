@@ -14,10 +14,10 @@ import benchmark_utils.file_utils as fileutil
 # NOTE: This assumes one primary source of video data. If you need to process
 # MotionBERT, MMPose, etc., separately, you'd run this script for each one
 # by changing the CSV_INPUT_BASE_DIR.
-CSV_INPUT_BASE_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/benchmark/jointangles/jointangles_motionbert" # Example: Using MotionBERT data
+CSV_INPUT_BASE_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/benchmark/jointangles/jointangles_motionagformer" # Example: Using MotionBERT data
 
 # Define the directory where the new angle CSVs will be saved.
-ANGLE_OUTPUT_BASE_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/jointangles_motionbert_dataset"
+ANGLE_OUTPUT_BASE_DIR = "/Users/mario/Documents/TFG_VIDIMU/VIDIMU/jointangles_motionagformer"
 
 # Define patterns to find subjects and trial files
 SUBJECT_DIRS_PATTERN = "S*"

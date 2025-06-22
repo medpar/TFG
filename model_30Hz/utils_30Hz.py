@@ -31,7 +31,7 @@ def plot_training_history(history, fold_num=None, trial_num=None):
     title_parts = []
     if trial_num is not None: title_parts.append(f"Trial {trial_num}")
     if fold_num is not None: title_parts.append(f"Fold {fold_num}")
-    title_prefix = " ".join(title_parts) + " (30Hz Model) " if title_parts else "(30Hz Model) "
+    title_prefix = " ".join(title_parts)
 
     axs[0].plot(history['train_loss'], label='Train Loss')
     axs[0].plot(history['val_loss'], label='Validation Loss')
@@ -74,7 +74,7 @@ def plot_confusion_matrix_custom(y_true_flat, y_pred_flat, class_names, title='C
     title_parts = []
     if trial_num is not None: title_parts.append(f"Trial {trial_num}")
     if fold_num is not None: title_parts.append(f"Fold {fold_num}")
-    title_prefix = " ".join(title_parts) + " (30Hz) " if title_parts else "(30Hz) "
+    title_prefix = " ".join(title_parts)
     ax.set_title(f'{title_prefix}{title}')
     plot_filename_base = f"{title_prefix}{title.replace(' ', '_').lower()}_confusion_matrix.png".replace(" ", "_").lower()
     global OUTPUT_PLOTS_DIR
@@ -119,11 +119,11 @@ def plot_model_predictions_vs_true_phases(timestamps, true_phases, predicted_pha
     
     # Plot true phases if available and aligned
     if true_phases_plot is not None and len(true_phases_plot) == len(time_plot):
-        ax.plot(time_plot, true_phases_plot, color='tab:blue', linestyle='-', marker='.', markersize=4, alpha=0.7, label='True Phases (from IMU)')
+        ax.plot(time_plot, true_phases_plot, color='tab:blue', linestyle='-', marker='.', markersize=4, alpha=0.7, label='True Phases')
     
     # Plot predicted phases if available
     if predicted_phases_plot is not None and len(predicted_phases_plot) == len(time_plot):
-        ax.plot(time_plot, predicted_phases_plot, color='tab:red', linestyle='--', marker='x', markersize=4, alpha=0.7, label='Predicted Phases (Model)')
+        ax.plot(time_plot, predicted_phases_plot, color='tab:red', linestyle='--', marker='x', markersize=4, alpha=0.7, label='Predicted Phases')
     
     ax.set_yticks(np.arange(-1, config.NUM_CLASSES + 1))
     ax.set_yticklabels([f"Phase {i}" for i in np.arange(-1, config.NUM_CLASSES + 1)])
@@ -155,7 +155,7 @@ def plot_model_predictions_vs_angular_velocity(timestamps_csv, predicted_phases_
         omega_plot_aligned = omega_interpolator(t_plot_master)
     n_plot = min(config.PLOT_MAX_SAMPLES_INFERENCE, len(t_plot_master))
     t_plot_master_sub, omega_plot_aligned_sub, predicted_phases_csv_sub = t_plot_master[:n_plot], omega_plot_aligned[:n_plot], predicted_phases_csv[:n_plot]
-    fig, ax1 = plt.subplots(figsize=(15, 6)); ax1.plot(t_plot_master_sub, omega_plot_aligned_sub, alpha=0.7, label='Ang. Vel. (IMU)'); ax1.set_xlabel('Time (s)'); ax1.set_ylabel('Angular Velocity (rad/s)')
+    fig, ax1 = plt.subplots(figsize=(15, 6)); ax1.plot(t_plot_master_sub, omega_plot_aligned_sub, alpha=0.7, label='Ang. Vel.'); ax1.set_xlabel('Time (s)'); ax1.set_ylabel('Angular Velocity (rad/s)')
     phase_colors_map = {0: 'lightblue', 1: 'lightcoral', 2: 'lightgreen', -1: 'whitesmoke'}
     legend_phases_added = set()
     for ph_val, color in phase_colors_map.items():
@@ -164,9 +164,9 @@ def plot_model_predictions_vs_angular_velocity(timestamps_csv, predicted_phases_
         diff_mask = np.diff(np.concatenate(([False], mask, [False])).astype(int)); starts, ends = np.where(diff_mask == 1)[0], np.where(diff_mask == -1)[0]
         for s, e in zip(starts, ends):
             if s < e:
-                label = f"Phase {ph_val} (Model)" if ph_val not in legend_phases_added else ""
+                label = f"Phase {ph_val}" if ph_val not in legend_phases_added else ""
                 ax1.axvspan(t_plot_master_sub[s], t_plot_master_sub[e-1] + (1/config.SAMPLING_RATE), color=color, alpha=0.45, label=label)
                 if label: legend_phases_added.add(ph_val)
-    plt.title(f"Model Predicted Phases (30Hz) vs IMU Angular Velocity {title_suffix}"); ax1.legend(); plt.grid(True); plt.tight_layout()
+    plt.title(f"Model Predicted Phases vs IMU Angular Velocity {title_suffix}"); ax1.legend(); plt.grid(True); plt.tight_layout()
     plot_filename_base = f"model_phases_vs_ang_vel{title_suffix.replace(' ', '_').lower()}.png"
     global OUTPUT_PLOTS_DIR; plt.savefig(os.path.join(OUTPUT_PLOTS_DIR, plot_filename_base)); plt.close(fig)
