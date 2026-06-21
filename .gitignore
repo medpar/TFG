@@ -9,4 +9,5 @@ __pycache__
 **/*.svg
 **/*.pdf
 **/*.db
+!docs/assets/readme/*.png
 borrar/
