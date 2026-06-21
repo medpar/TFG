@@ -1,4 +1,4 @@
-# Human Pose Estimation and Gait Segmentation
+# Human Pose Estimation and Gait Segmentation AI Models
 
 This repository contains the code developed for a computer-vision and biomechanics project focused on one question:
 
